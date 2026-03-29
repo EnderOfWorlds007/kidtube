@@ -678,6 +678,9 @@
 
   /* Responsive */
   @media (max-width: 1024px) {
+    .video-grid { grid-template-columns: repeat(3, 1fr); }
+  }
+  @media (max-width: 768px) {
     .video-grid { grid-template-columns: repeat(2, 1fr); }
   }
   @media (max-width: 640px) {
@@ -747,13 +750,21 @@ function fmtDuration(seconds) {
   return `${m}:${String(s).padStart(2,'0')}`;
 }
 
-/* ─── View count formatter ─── */
-function fmtViews(n) {
+/* ─── Number formatters ─── */
+function fmtCount(n) {
   if (!n) return '';
   const num = parseInt(n);
-  if (num >= 1_000_000) return (num / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M views';
-  if (num >= 1_000) return (num / 1_000).toFixed(1).replace(/\.0$/, '') + 'K views';
-  return num + ' views';
+  if (num >= 1_000_000) return (num / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M';
+  if (num >= 1_000) return (num / 1_000).toFixed(1).replace(/\.0$/, '') + 'K';
+  return String(num);
+}
+function fmtViews(n) {
+  const c = fmtCount(n);
+  return c ? c + ' views' : '';
+}
+function fmtSubscribers(n) {
+  const c = fmtCount(n);
+  return c ? c + ' subscribers' : '';
 }
 
 /* ─── Relative time ─── */
@@ -1059,10 +1070,13 @@ function PinPrompt({ onSuccess, onCancel, correctPin }) {
 }
 
 function LanguageList({ languages, onChange }) {
+  const [newLang, setNewLang] = useState('');
+
   function addLang() {
-    const code = prompt('Enter language code (e.g. fr, en, es, de):');
-    if (code && code.trim()) {
-      onChange([...languages, code.trim().toLowerCase()]);
+    const code = newLang.trim().toLowerCase();
+    if (code && !languages.includes(code)) {
+      onChange([...languages, code]);
+      setNewLang('');
     }
   }
   function removeLang(idx) {
@@ -1086,24 +1100,35 @@ function LanguageList({ languages, onChange }) {
   return (
     <div>
       <div className="lang-list">
-        {languages.map((lang, i) => (
-          <div key={i} className="lang-item">
+        {languages.map((lang) => (
+          <div key={lang} className="lang-item">
             <span className="lang-item-label">{LANG_NAMES[lang] || lang}</span>
-            <span className="lang-item-priority">{i === 0 ? 'primary' : 'fallback'}</span>
-            <button onClick={() => moveLang(i, -1)} title="Move up">&#8593;</button>
-            <button onClick={() => moveLang(i, 1)} title="Move down">&#8595;</button>
-            <button onClick={() => removeLang(i)} title="Remove">&#215;</button>
+            <span className="lang-item-priority">{languages.indexOf(lang) === 0 ? 'primary' : 'fallback'}</span>
+            <button onClick={() => moveLang(languages.indexOf(lang), -1)} title="Move up">&#8593;</button>
+            <button onClick={() => moveLang(languages.indexOf(lang), 1)} title="Move down">&#8595;</button>
+            <button onClick={() => removeLang(languages.indexOf(lang))} title="Remove">&#215;</button>
           </div>
         ))}
       </div>
-      <button
-        onClick={addLang}
-        style={{
-          marginTop:8, padding:'6px 14px', background:'var(--surface)',
-          border:'1px solid var(--border)', borderRadius:6, color:'var(--text-secondary)',
-          fontSize:12, cursor:'pointer', fontFamily:'inherit',
-        }}
-      >+ Add language</button>
+      <div style={{display:'flex', gap:6, marginTop:8}}>
+        <input
+          className="settings-input"
+          style={{flex:1, padding:'6px 10px', fontSize:12}}
+          type="text"
+          placeholder="e.g. fr, en, es"
+          value={newLang}
+          onChange={e => setNewLang(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addLang(); } }}
+        />
+        <button
+          onClick={addLang}
+          style={{
+            padding:'6px 14px', background:'var(--surface)',
+            border:'1px solid var(--border)', borderRadius:6, color:'var(--text-secondary)',
+            fontSize:12, cursor:'pointer', fontFamily:'inherit',
+          }}
+        >Add</button>
+      </div>
     </div>
   );
 }
@@ -1292,11 +1317,21 @@ function ChipsBar({ topics, activeTopic, onSelect }) {
   );
 }
 
+// Promise-based YT API ready detection (avoids global overwrite race)
+let _ytResolve;
+const _ytReady = new Promise(r => { _ytResolve = r; });
+if (window.YT && window.YT.Player) _ytResolve();
+else {
+  const _prev = window.onYouTubeIframeAPIReady;
+  window.onYouTubeIframeAPIReady = () => { if (_prev) _prev(); _ytResolve(); };
+}
+
 function PlayerOverlay({ video, onClose }) {
   const playerRef = useRef(null);
   const [playerError, setPlayerError] = useState(null);
 
   useEffect(() => {
+    let cancelled = false;
     setPlayerError(null);
 
     if (!window.YT) {
@@ -1305,7 +1340,8 @@ function PlayerOverlay({ video, onClose }) {
       document.head.appendChild(tag);
     }
 
-    function createPlayer() {
+    _ytReady.then(() => {
+      if (cancelled) return;
       if (playerRef.current) {
         try { playerRef.current.destroy(); } catch {}
       }
@@ -1321,6 +1357,7 @@ function PlayerOverlay({ video, onClose }) {
         },
         events: {
           onError: (event) => {
+            if (cancelled) return;
             const code = event.data;
             if (code === 101 || code === 150) setPlayerError('embed');
             else if (code === 100) setPlayerError('notfound');
@@ -1328,12 +1365,10 @@ function PlayerOverlay({ video, onClose }) {
           },
         },
       });
-    }
-
-    if (window.YT && window.YT.Player) createPlayer();
-    else window.onYouTubeIframeAPIReady = createPlayer;
+    });
 
     return () => {
+      cancelled = true;
       if (playerRef.current) {
         try { playerRef.current.destroy(); } catch {}
         playerRef.current = null;
@@ -1378,7 +1413,7 @@ function PlayerOverlay({ video, onClose }) {
               <div>
                 <div className="player-channel-name">{video.snippet.channelTitle}</div>
                 {video.subscriberCount && (
-                  <div style={{fontSize:12, color:'var(--text-secondary)'}}>{fmtViews(video.subscriberCount).replace('views','subscribers')}</div>
+                  <div style={{fontSize:12, color:'var(--text-secondary)'}}>{fmtSubscribers(video.subscriberCount)}</div>
                 )}
               </div>
             </div>

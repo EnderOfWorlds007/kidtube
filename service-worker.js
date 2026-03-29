@@ -1,7 +1,9 @@
 const CACHE_NAME = 'kidtube-v1';
-const STATIC_ASSETS = [
+const CRITICAL_ASSETS = [
   '/kidtube.html',
   '/manifest.json',
+];
+const CDN_ASSETS = [
   'https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js',
@@ -9,7 +11,13 @@ const STATIC_ASSETS = [
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS))
+    caches.open(CACHE_NAME).then(async (cache) => {
+      await cache.addAll(CRITICAL_ASSETS);
+      // Cache CDN assets opportunistically — don't block install if they fail
+      for (const url of CDN_ASSETS) {
+        try { await cache.add(url); } catch {}
+      }
+    })
   );
   self.skipWaiting();
 });
