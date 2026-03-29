@@ -843,6 +843,14 @@ function runFilterPipeline(videos, settings) {
 
 /* ─── YouTube API ─── */
 async function searchYouTube(apiKey, query, settings, pageToken = '') {
+  const maxMin = settings.maxDuration || 10;
+  // YouTube API videoDuration: short (<4min), medium (4-20min), long (>20min)
+  // Pre-filter to avoid fetching videos that will all be filtered out client-side
+  let videoDuration;
+  if (maxMin <= 4) videoDuration = 'short';
+  else if (maxMin <= 20) videoDuration = 'medium';
+  // If maxDuration > 20, don't restrict (could be short, medium, or long)
+
   const params = new URLSearchParams({
     part: 'snippet',
     q: query + ' for kids',
@@ -851,6 +859,7 @@ async function searchYouTube(apiKey, query, settings, pageToken = '') {
     safeSearch: settings.safeSearch || 'strict',
     key: apiKey,
     ...(pageToken ? { pageToken } : {}),
+    ...(videoDuration ? { videoDuration } : {}),
   });
   const langs = settings.languages || [];
   if (langs.length > 0) {
