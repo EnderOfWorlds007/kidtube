@@ -1608,6 +1608,68 @@ function SettingsModal({ settings, onSave, onCancel }) {
           </div>
         </div>
 
+        {/* Import watch history */}
+        <div className="settings-tier">
+          <div className="settings-tier-header">
+            <div className="settings-tier-dot" style={{background:'var(--text-secondary)'}}></div>
+            <div className="settings-tier-title" style={{color:'var(--text-secondary)'}}>Watch History</div>
+          </div>
+          <div className="settings-tier-body">
+            <div>
+              <div className="settings-label">Import from Google Takeout</div>
+              <div style={{fontSize:11, color:'var(--text-tertiary)', marginBottom:8, lineHeight:1.5}}>
+                Export from <a href="https://takeout.google.com" target="_blank" rel="noopener" style={{color:'var(--accent-blue)'}}>takeout.google.com</a> (select YouTube, change History format to JSON).
+                Upload the <code style={{background:'var(--surface)', padding:'1px 4px', borderRadius:3, fontSize:11}}>watch-history.json</code> file.
+              </div>
+              <input type="file" accept=".json" id="history-import"
+                style={{display:'none'}}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  try {
+                    const text = await file.text();
+                    const entries = JSON.parse(text);
+                    if (!Array.isArray(entries)) throw new Error('Expected a JSON array');
+                    const h = getWatchHistory();
+                    let imported = 0;
+                    for (const entry of entries) {
+                      if (!entry.titleUrl) continue;
+                      try {
+                        const url = new URL(entry.titleUrl);
+                        const videoId = url.searchParams.get('v');
+                        if (!videoId || h[videoId]) continue;
+                        h[videoId] = {
+                          t: entry.time ? new Date(entry.time).getTime() : Date.now(),
+                          ch: entry.subtitles?.[0]?.name || '',
+                          q: '',
+                          topic: '',
+                        };
+                        imported++;
+                      } catch {}
+                    }
+                    const sorted = Object.entries(h).sort((a, b) => b[1].t - a[1].t).slice(0, 500);
+                    localStorage.setItem('kidtube_history', JSON.stringify(Object.fromEntries(sorted)));
+                    alert('Imported ' + imported + ' videos from watch history');
+                  } catch (err) {
+                    alert('Import failed: ' + err.message);
+                  }
+                  e.target.value = '';
+                }}
+              />
+              <button onClick={() => document.getElementById('history-import').click()}
+                style={{
+                  padding:'8px 16px', background:'var(--surface)', border:'1px solid var(--border)',
+                  borderRadius:6, color:'var(--text-primary)', fontSize:13, cursor:'pointer', fontFamily:'inherit',
+                }}>
+                Upload watch-history.json
+              </button>
+              <div style={{fontSize:11, color:'var(--text-tertiary)', marginTop:6}}>
+                {Object.keys(getWatchHistory()).length} videos in local history
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div className="settings-btn-row">
           <button className="btn-cancel" onClick={onCancel}>Cancel</button>
           <button className="btn-save" onClick={() => {
