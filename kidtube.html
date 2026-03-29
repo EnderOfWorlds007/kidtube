@@ -1416,9 +1416,17 @@ function PlayerOverlay({ video, onClose }) {
           autoplay: 1,
           rel: 0,
           modestbranding: 1,
+          disablekb: 0,
           origin: window.location.origin,
         },
         events: {
+          onStateChange: (event) => {
+            if (cancelled) return;
+            // YT.PlayerState.ENDED === 0
+            // Close player immediately when video ends to prevent
+            // end-screen recommendations from being clickable
+            if (event.data === 0) onClose();
+          },
           onError: (event) => {
             if (cancelled) return;
             const code = event.data;
