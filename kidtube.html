@@ -1391,6 +1391,7 @@ else {
 
 function PlayerOverlay({ video, onClose }) {
   const playerRef = useRef(null);
+  const pollRef = useRef(null);
   const [playerError, setPlayerError] = useState(null);
 
   useEffect(() => {
@@ -1422,10 +1423,22 @@ function PlayerOverlay({ video, onClose }) {
         events: {
           onStateChange: (event) => {
             if (cancelled) return;
-            // YT.PlayerState.ENDED === 0
-            // Close player immediately when video ends to prevent
-            // end-screen recommendations from being clickable
-            if (event.data === 0) onClose();
+            if (event.data === 0) onClose(); // ENDED
+            // Start polling when playing to catch the last 20s
+            if (event.data === 1) { // PLAYING
+              if (!pollRef.current) {
+                pollRef.current = setInterval(() => {
+                  if (cancelled || !playerRef.current) return;
+                  try {
+                    const cur = playerRef.current.getCurrentTime();
+                    const dur = playerRef.current.getDuration();
+                    if (dur > 0 && (dur - cur) < 20) {
+                      onClose();
+                    }
+                  } catch {}
+                }, 1000);
+              }
+            }
           },
           onError: (event) => {
             if (cancelled) return;
@@ -1440,6 +1453,7 @@ function PlayerOverlay({ video, onClose }) {
 
     return () => {
       cancelled = true;
+      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
       if (playerRef.current) {
         try { playerRef.current.destroy(); } catch {}
         playerRef.current = null;
@@ -1598,23 +1612,64 @@ function App() {
     setLoadingMore(false);
   }, [nextPageToken, loadingMore, loading, fetchPage]);
 
+  /* Mixed search: grab a few videos from several topics, shuffle together */
+  const doMixedSearch = useCallback(async (allTopics) => {
+    setLoading(true);
+    setError('');
+    setNextPageToken(null);
+    setIsSearchView(false);
+    currentQueryRef.current = '';
+    currentIsTopicRef.current = true;
+    try {
+      // Pick 4-5 random topics
+      const shuffled = [...allTopics].sort(() => Math.random() - 0.5);
+      const picks = shuffled.slice(0, Math.min(5, shuffled.length));
+      // Fetch 6 videos per topic in parallel (uses 1 search + 1 details call each)
+      const results = await Promise.all(picks.map(async (topic) => {
+        const searchResp = await searchYouTube(settings.apiKey, topic, {...settings}, '');
+        if (searchResp.error || !searchResp.items?.length) return [];
+        const ids = searchResp.items.slice(0, 6).map(i => i.id.videoId).filter(Boolean);
+        if (!ids.length) return [];
+        const detailResp = await getVideoDetails(settings.apiKey, ids);
+        return (detailResp.items || []).map(item => ({
+          ...item,
+          durationSec: parseDuration(item.contentDetails.duration),
+          subscriberCount: null,
+        }));
+      }));
+      const allVideos = results.flat();
+      const filtered = runFilterPipeline(allVideos, settings);
+      // Deduplicate and shuffle
+      const seen = new Set();
+      const unique = filtered.filter(v => { if (seen.has(v.id)) return false; seen.add(v.id); return true; });
+      const mixed = unique.sort(() => Math.random() - 0.5);
+      setVideos(mixed);
+    } catch (err) {
+      setError(err.message || 'Something went wrong');
+    }
+    setLoading(false);
+  }, [settings]);
+
   const topics = getTopics(settings);
 
   useEffect(() => {
     if (isSetup && !initialLoaded) {
       setInitialLoaded(true);
-      const randomTopic = topics[Math.floor(Math.random() * topics.length)];
       setActiveTopic(null);
-      doSearch(randomTopic, true);
+      doMixedSearch(topics);
     }
-  }, [isSetup, initialLoaded, doSearch]);
+  }, [isSetup, initialLoaded, doMixedSearch]);
 
   function handleChipSelect(topic) {
     setActiveTopic(topic);
     setIsSearchView(false);
     setSearchFilter('all');
-    const q = topic || topics[Math.floor(Math.random() * topics.length)];
-    doSearch(q, true);
+    if (topic === null) {
+      // "All" chip: mixed results from multiple topics
+      doMixedSearch(topics);
+    } else {
+      doSearch(topic, true);
+    }
   }
 
   function handleSearch() {
