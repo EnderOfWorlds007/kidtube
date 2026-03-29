@@ -900,34 +900,71 @@ function saveSettings(s) {
 }
 
 /* ─── Watch history ─── */
+/* ─── Watch history (rich) ─── */
+// Stores: { videoId: { t: timestamp, ch: channelTitle, q: query, topic: topicName } }
 function getWatchHistory() {
-  try { return JSON.parse(localStorage.getItem('kidtube_history') || '{}'); } catch { return {}; }
+  try {
+    const raw = JSON.parse(localStorage.getItem('kidtube_history') || '{}');
+    // Migrate old format (videoId → timestamp) to new format
+    const out = {};
+    for (const [k, v] of Object.entries(raw)) {
+      out[k] = typeof v === 'number' ? { t: v } : v;
+    }
+    return out;
+  } catch { return {}; }
 }
-function markWatched(videoId) {
+function markWatched(videoId, meta = {}) {
   const h = getWatchHistory();
-  h[videoId] = Date.now();
-  // Keep only last 500 entries
-  const entries = Object.entries(h).sort((a, b) => b[1] - a[1]).slice(0, 500);
+  h[videoId] = { t: Date.now(), ...meta };
+  // Keep last 500
+  const entries = Object.entries(h).sort((a, b) => b[1].t - a[1].t).slice(0, 500);
   localStorage.setItem('kidtube_history', JSON.stringify(Object.fromEntries(entries)));
 }
 function isWatched(videoId) {
   return !!getWatchHistory()[videoId];
 }
 
-/* ─── Result freshness: sort unwatched first, shuffle within groups ─── */
+/* ─── Taste profile: extract signals from watch history ─── */
+function getTasteProfile() {
+  const h = getWatchHistory();
+  const entries = Object.values(h);
+  // Count channel watches
+  const channelCounts = {};
+  const queryCounts = {};
+  const topicCounts = {};
+  for (const e of entries) {
+    if (e.ch) channelCounts[e.ch] = (channelCounts[e.ch] || 0) + 1;
+    if (e.q) queryCounts[e.q] = (queryCounts[e.q] || 0) + 1;
+    if (e.topic) topicCounts[e.topic] = (topicCounts[e.topic] || 0) + 1;
+  }
+  // Sort by frequency
+  const topChannels = Object.entries(channelCounts).sort((a, b) => b[1] - a[1]).slice(0, 10).map(e => e[0]);
+  const topQueries = Object.entries(queryCounts).sort((a, b) => b[1] - a[1]).slice(0, 10).map(e => e[0]);
+  const topTopics = Object.entries(topicCounts).sort((a, b) => b[1] - a[1]).slice(0, 5).map(e => e[0]);
+  return { topChannels, topQueries, topTopics, totalWatched: entries.length };
+}
+
+/* ─── Result freshness + taste-based boosting ─── */
 function freshSort(videos) {
-  const watched = [];
-  const unwatched = [];
   const history = getWatchHistory();
-  for (const v of videos) {
-    (history[v.id] ? watched : unwatched).push(v);
-  }
-  // Shuffle unwatched so repeated searches feel different
-  for (let i = unwatched.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [unwatched[i], unwatched[j]] = [unwatched[j], unwatched[i]];
-  }
-  return [...unwatched, ...watched];
+  const taste = getTasteProfile();
+  const favoriteChannels = new Set(taste.topChannels);
+
+  // Score each video
+  const scored = videos.map(v => {
+    let score = 0;
+    const wasWatched = !!history[v.id];
+    // Unwatched videos get a big boost
+    if (!wasWatched) score += 1000;
+    // Videos from favorite channels get a boost
+    if (favoriteChannels.has(v.snippet?.channelTitle)) score += 200;
+    // Add randomness so results feel fresh
+    score += Math.random() * 100;
+    return { video: v, score, wasWatched };
+  });
+
+  scored.sort((a, b) => b.score - a.score);
+  return scored.map(s => s.video);
 }
 
 /* ─── Last visit tracking ─── */
@@ -2078,8 +2115,16 @@ function App() {
         }
       }
 
-      const shuffled = [...allTopics].sort(() => Math.random() - 0.5);
-      const picks = shuffled.slice(0, 3);
+      // Weight topic selection toward kid's favorites
+      const taste = getTasteProfile();
+      const favoriteTopicSet = new Set(taste.topTopics);
+      const weighted = [...allTopics].sort((a, b) => {
+        const aFav = favoriteTopicSet.has(a) ? 1 : 0;
+        const bFav = favoriteTopicSet.has(b) ? 1 : 0;
+        // Favorites get 70% chance of being picked, rest is random
+        return (bFav - aFav) * 0.7 + (Math.random() - 0.5);
+      });
+      const picks = weighted.slice(0, 3);
       const recentDate = new Date(Date.now() - 30 * 86400000).toISOString();
 
       const recentResults = await Promise.allSettled(
@@ -2180,7 +2225,11 @@ function App() {
   }, [playingVideo, showSettings, showPin, showApprovalPin]);
 
   function playVideo(video) {
-    markWatched(video.id);
+    markWatched(video.id, {
+      ch: video.snippet?.channelTitle || '',
+      q: currentQueryRef.current || '',
+      topic: activeTopic || '',
+    });
     setPlayingVideo(video);
   }
 
