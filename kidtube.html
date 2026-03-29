@@ -1457,11 +1457,15 @@ function App() {
     setLoading(true);
     setError('');
     try {
+      console.log('[KT] Searching:', q, 'isTopicSearch:', isTopicSearch);
       const searchResp = await searchYouTube(settings.apiKey, q, settings);
+      console.log('[KT] Search response:', searchResp);
       if (searchResp.error) throw new Error(searchResp.error.message || 'API error');
       const ids = (searchResp.items || []).map(i => i.id.videoId).filter(Boolean);
+      console.log('[KT] Video IDs:', ids.length);
       if (!ids.length) { setVideos([]); setLoading(false); return; }
       const detailResp = await getVideoDetails(settings.apiKey, ids);
+      console.log('[KT] Details:', detailResp.items?.length, 'videos');
       const channelIds = detailResp.items.map(i => i.snippet.channelId);
       const subCounts = await getChannelDetails(settings.apiKey, channelIds);
       const enriched = detailResp.items.map(item => ({
@@ -1469,10 +1473,13 @@ function App() {
         durationSec: parseDuration(item.contentDetails.duration),
         subscriberCount: subCounts[item.snippet.channelId] || null,
       }));
-      setVideos(runFilterPipeline(enriched, settings));
+      const filtered = runFilterPipeline(enriched, settings);
+      console.log('[KT] Before filter:', enriched.length, 'After filter:', filtered.length);
+      console.log('[KT] Settings:', JSON.stringify({maxDuration: settings.maxDuration, blockedKeywords: settings.blockedKeywords, allowedChannels: settings.allowedChannels, languages: settings.languages}));
+      setVideos(filtered);
       if (!isTopicSearch) setIsSearchView(true);
     } catch (err) {
-      console.error('Search error:', err);
+      console.error('[KT] Search error:', err);
       setError(err.message || 'Something went wrong');
     }
     setLoading(false);
