@@ -732,10 +732,17 @@ const DEFAULT_SETTINGS = {
   languages: [],
 };
 
-const TOPICS = [
-  'Dinosaurs', 'Space', 'Lego', 'Animals', 'Science',
-  'Drawing', 'Music', 'Magic Tricks', 'Nature', 'Cartoons',
-];
+const TOPICS_BY_LANG = {
+  en: ['Dinosaurs', 'Space', 'Lego', 'Animals', 'Science', 'Drawing', 'Music', 'Magic Tricks', 'Nature', 'Cartoons'],
+  fr: ['Dinosaures', 'Espace', 'Lego', 'Animaux', 'Science', 'Dessin', 'Musique', 'Tours de magie', 'Nature', 'Dessins animés'],
+  es: ['Dinosaurios', 'Espacio', 'Lego', 'Animales', 'Ciencia', 'Dibujo', 'Música', 'Trucos de magia', 'Naturaleza', 'Dibujos animados'],
+  de: ['Dinosaurier', 'Weltraum', 'Lego', 'Tiere', 'Wissenschaft', 'Zeichnen', 'Musik', 'Zaubertricks', 'Natur', 'Zeichentrick'],
+};
+
+function getTopics(settings) {
+  const lang = (settings.languages || [])[0] || 'en';
+  return TOPICS_BY_LANG[lang] || TOPICS_BY_LANG.en;
+}
 
 /* ─── Settings persistence ─── */
 function loadSettings() {
@@ -849,30 +856,59 @@ function runFilterPipeline(videos, settings) {
   });
 }
 
+/* ─── Language-aware search helpers ─── */
+const FOR_KIDS_TRANSLATIONS = {
+  fr: 'pour enfants',
+  en: 'for kids',
+  es: 'para niños',
+  de: 'für Kinder',
+  it: 'per bambini',
+  pt: 'para crianças',
+  nl: 'voor kinderen',
+  ru: 'для детей',
+  ja: '子供向け',
+  ko: '어린이용',
+  zh: '儿童',
+  ar: 'للأطفال',
+  hi: 'बच्चों के लिए',
+  sv: 'för barn',
+  pl: 'dla dzieci',
+  ro: 'pentru copii',
+  tr: 'çocuklar için',
+};
+
+const LANG_TO_REGION = {
+  fr: 'FR', en: 'US', es: 'ES', de: 'DE', it: 'IT', pt: 'BR',
+  nl: 'NL', ru: 'RU', ja: 'JP', ko: 'KR', zh: 'CN', ar: 'SA',
+  hi: 'IN', sv: 'SE', pl: 'PL', ro: 'RO', tr: 'TR',
+};
+
 /* ─── YouTube API ─── */
 async function searchYouTube(apiKey, query, settings, pageToken = '') {
   const maxMin = settings.maxDuration || 10;
-  // YouTube API videoDuration: short (<4min), medium (4-20min), long (>20min)
-  // Pre-filter to avoid fetching videos that will all be filtered out client-side
   let videoDuration;
   if (maxMin <= 4) videoDuration = 'short';
   else if (maxMin <= 20) videoDuration = 'medium';
-  // If maxDuration > 20, don't restrict (could be short, medium, or long)
+
+  const langs = settings.languages || [];
+  const primaryLang = langs[0] || 'en';
+  const forKids = FOR_KIDS_TRANSLATIONS[primaryLang] || FOR_KIDS_TRANSLATIONS.en;
 
   const params = new URLSearchParams({
     part: 'snippet',
-    q: query + ' for kids',
+    q: query + ' ' + forKids,
     type: 'video',
     maxResults: '24',
     safeSearch: settings.safeSearch || 'strict',
+    relevanceLanguage: primaryLang,
     key: apiKey,
     ...(pageToken ? { pageToken } : {}),
     ...(videoDuration ? { videoDuration } : {}),
   });
-  const langs = settings.languages || [];
-  if (langs.length > 0) {
-    params.set('relevanceLanguage', langs[0]);
-  }
+  // Region code biases results toward content popular in that country
+  const region = LANG_TO_REGION[primaryLang];
+  if (region) params.set('regionCode', region);
+
   const resp = await fetch(`https://www.googleapis.com/youtube/v3/search?${params}`);
   if (!resp.ok) throw new Error(`YouTube search failed (${resp.status})`);
   return resp.json();
@@ -1541,10 +1577,12 @@ function App() {
     setLoadingMore(false);
   }, [nextPageToken, loadingMore, loading, fetchPage]);
 
+  const topics = getTopics(settings);
+
   useEffect(() => {
     if (isSetup && !initialLoaded) {
       setInitialLoaded(true);
-      const randomTopic = TOPICS[Math.floor(Math.random() * TOPICS.length)];
+      const randomTopic = topics[Math.floor(Math.random() * topics.length)];
       setActiveTopic(null);
       doSearch(randomTopic, true);
     }
@@ -1554,7 +1592,7 @@ function App() {
     setActiveTopic(topic);
     setIsSearchView(false);
     setSearchFilter('all');
-    const q = topic || TOPICS[Math.floor(Math.random() * TOPICS.length)];
+    const q = topic || topics[Math.floor(Math.random() * topics.length)];
     doSearch(q, true);
   }
 
@@ -1608,7 +1646,7 @@ function App() {
       />
 
       <ChipsBar
-        topics={TOPICS}
+        topics={topics}
         activeTopic={activeTopic}
         onSelect={handleChipSelect}
       />
