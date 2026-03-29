@@ -723,7 +723,8 @@ const { useState, useEffect, useRef, useCallback } = React;
 /* ─── API Base URL ─── */
 // If a proxy URL is configured, API calls go through it (key stays server-side).
 // Otherwise, calls go direct to Google (key stored in localStorage).
-const PROXY_URL = localStorage.getItem('kidtube_proxy') || '';
+const DEFAULT_PROXY = 'https://kidtube-api.enderofworlds007.workers.dev';
+const PROXY_URL = localStorage.getItem('kidtube_proxy') || DEFAULT_PROXY;
 function ytApiUrl(path, params) {
   if (PROXY_URL) {
     // Proxy mode: key is server-side, remove it from params
@@ -1091,31 +1092,15 @@ function Header({ query, onQueryChange, onSearch, onTripleTap }) {
 }
 
 function SetupScreen({ onSave }) {
-  const [key, setKey] = useState('');
   const [pin, setPin] = useState('1234');
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [key, setKey] = useState('');
+  const hasProxy = Boolean(PROXY_URL);
+
   return (
     <div className="setup-screen">
       <h2>Welcome to YouTube</h2>
-      <p>Let's get set up — this only takes a minute.</p>
-      <div className="instructions">
-        <strong>How to get a free YouTube API key:</strong>
-        <ol>
-          <li>Go to <a href="https://console.cloud.google.com" target="_blank" rel="noopener">console.cloud.google.com</a></li>
-          <li>Create a new project (or pick an existing one)</li>
-          <li>Go to <strong>APIs &amp; Services → Library</strong></li>
-          <li>Search for <code>YouTube Data API v3</code> and <strong>Enable</strong> it</li>
-          <li>Go to <strong>APIs &amp; Services → Credentials</strong></li>
-          <li>Click <strong>Create Credentials → API Key</strong></li>
-          <li>Copy the key and paste it below</li>
-        </ol>
-        <p style={{marginTop:'10px'}}>The free tier gives you ~10,000 units/day — plenty for casual use.</p>
-      </div>
-      <input
-        type="text"
-        placeholder="Paste your YouTube API key here"
-        value={key}
-        onChange={e => setKey(e.target.value)}
-      />
+      <p>Set a parent PIN to protect settings, then you're ready to go.</p>
       <label style={{display:'block', textAlign:'left', fontWeight:600, fontSize:14, marginBottom:6, color:'var(--text-secondary)'}}>
         Parent PIN (to access settings later)
       </label>
@@ -1127,10 +1112,45 @@ function SetupScreen({ onSave }) {
         onChange={e => setPin(e.target.value)}
         style={{maxWidth:200, margin:'0 auto 16px', textAlign:'center', letterSpacing:6, fontSize:20}}
       />
-      <br/>
+      {!hasProxy && (
+        <>
+          <div className="instructions">
+            <strong>YouTube API key required:</strong>
+            <ol>
+              <li>Go to <a href="https://console.cloud.google.com" target="_blank" rel="noopener">console.cloud.google.com</a></li>
+              <li>Create a project, enable <code>YouTube Data API v3</code></li>
+              <li>Create an API key and paste it below</li>
+            </ol>
+          </div>
+          <input
+            type="text"
+            placeholder="Paste your YouTube API key here"
+            value={key}
+            onChange={e => setKey(e.target.value)}
+          />
+        </>
+      )}
+      {hasProxy && !showAdvanced && (
+        <div style={{marginBottom:16}}>
+          <button onClick={() => setShowAdvanced(true)}
+            style={{background:'none', border:'none', color:'var(--text-tertiary)', fontSize:12, cursor:'pointer', fontFamily:'inherit'}}>
+            Use your own API key instead
+          </button>
+        </div>
+      )}
+      {hasProxy && showAdvanced && (
+        <div style={{marginBottom:16}}>
+          <input
+            type="text"
+            placeholder="YouTube API key (optional — proxy is active)"
+            value={key}
+            onChange={e => setKey(e.target.value)}
+          />
+        </div>
+      )}
       <button
         className="btn-primary"
-        disabled={!key.trim()}
+        disabled={!hasProxy && !key.trim()}
         onClick={() => {
           const settings = { ...DEFAULT_SETTINGS, apiKey: key.trim(), parentPin: pin || '1234' };
           saveSettings(settings);
