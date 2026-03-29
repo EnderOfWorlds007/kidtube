@@ -720,6 +720,19 @@
 <script type="text/babel">
 const { useState, useEffect, useRef, useCallback } = React;
 
+/* ─── API Base URL ─── */
+// If a proxy URL is configured, API calls go through it (key stays server-side).
+// Otherwise, calls go direct to Google (key stored in localStorage).
+const PROXY_URL = localStorage.getItem('kidtube_proxy') || '';
+function ytApiUrl(path, params) {
+  if (PROXY_URL) {
+    // Proxy mode: key is server-side, remove it from params
+    params.delete('key');
+    return `${PROXY_URL}${path}?${params}`;
+  }
+  return `https://www.googleapis.com${path}?${params}`;
+}
+
 /* ─── Constants ─── */
 const DEFAULT_SETTINGS = {
   apiKey: '',
@@ -951,7 +964,7 @@ async function searchYouTube(apiKey, query, settings, pageToken = '', opts = {})
   const region = LANG_TO_REGION[primaryLang];
   if (region) params.set('regionCode', region);
 
-  const resp = await fetch(`https://www.googleapis.com/youtube/v3/search?${params}`);
+  const resp = await fetch(ytApiUrl('/youtube/v3/search', params));
   if (!resp.ok) throw new Error(`YouTube search failed (${resp.status})`);
   return resp.json();
 }
@@ -962,7 +975,7 @@ async function getVideoDetails(apiKey, ids) {
     id: ids.join(','),
     key: apiKey,
   });
-  const resp = await fetch(`https://www.googleapis.com/youtube/v3/videos?${params}`);
+  const resp = await fetch(ytApiUrl('/youtube/v3/videos', params));
   if (!resp.ok) throw new Error(`YouTube details failed (${resp.status})`);
   return resp.json();
 }
@@ -975,7 +988,7 @@ async function getChannelDetails(apiKey, channelIds) {
     id: unique.join(','),
     key: apiKey,
   });
-  const resp = await fetch(`https://www.googleapis.com/youtube/v3/channels?${params}`);
+  const resp = await fetch(ytApiUrl('/youtube/v3/channels', params));
   if (!resp.ok) return {};
   const data = await resp.json();
   const map = {};
@@ -1327,6 +1340,23 @@ function SettingsModal({ settings, onSave, onCancel }) {
               <div className="settings-label">YouTube API Key</div>
               <input className="settings-input" type="text" value={s.apiKey}
                 onChange={e => upd('apiKey', e.target.value)} />
+              <div style={{fontSize:11, color:'var(--text-tertiary)', marginTop:4}}>
+                Not needed if proxy URL is set below.
+              </div>
+            </div>
+            <div>
+              <div className="settings-label">API Proxy URL</div>
+              <input className="settings-input" type="text"
+                value={localStorage.getItem('kidtube_proxy') || ''}
+                placeholder="https://your-worker.your-subdomain.workers.dev"
+                onChange={e => {
+                  const val = e.target.value.trim();
+                  if (val) localStorage.setItem('kidtube_proxy', val);
+                  else localStorage.removeItem('kidtube_proxy');
+                }} />
+              <div style={{fontSize:11, color:'var(--text-tertiary)', marginTop:4}}>
+                Cloudflare Worker URL. Keeps API key server-side.
+              </div>
             </div>
             <div>
               <div className="settings-label">Parent PIN</div>
@@ -1731,7 +1761,7 @@ function App() {
   const currentQueryRef = useRef('');
   const currentIsTopicRef = useRef(false);
 
-  const isSetup = Boolean(settings.apiKey);
+  const isSetup = Boolean(settings.apiKey) || Boolean(PROXY_URL);
 
   /* Fetch + enrich a page of results, returns { videos, nextPageToken } */
   const fetchPage = useCallback(async (q, pageToken = '') => {
@@ -1793,7 +1823,7 @@ function App() {
   }, [settings]);
 
   const doSearch = useCallback(async (q, isTopicSearch = false) => {
-    if (!q.trim() || !settings.apiKey) return;
+    if (!q.trim() || (!settings.apiKey && !PROXY_URL)) return;
     setLoading(true);
     setError('');
     setNextPageToken(null);
