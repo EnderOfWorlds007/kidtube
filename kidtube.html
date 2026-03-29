@@ -2,248 +2,432 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>KidTube</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="theme-color" content="#0f0f0f" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black" />
+<link rel="apple-touch-icon" href="/icons/icon-192.png" />
+<link rel="manifest" href="/manifest.json" />
+<title>YouTube</title>
 <style>
   :root {
-    --bg: #f0f4ff;
-    --card: #ffffff;
-    --primary: #4f6df5;
-    --primary-hover: #3b57d9;
-    --accent: #ff6b6b;
-    --text: #2d3748;
-    --text-light: #718096;
-    --border: #e2e8f0;
-    --radius: 14px;
-    --shadow: 0 2px 12px rgba(0,0,0,0.06);
-    --green: #48bb78;
-    --yellow: #ecc94b;
-    --red: #fc8181;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    min-height: 100vh;
+    --bg: #0f0f0f;
+    --surface: #272727;
+    --elevated: #181818;
+    --border: #303030;
+    --text-primary: #ffffff;
+    --text-secondary: #aaaaaa;
+    --text-tertiary: #717171;
+    --accent-red: #ff0000;
+    --accent-blue: #3ea6ff;
+    --chip-active-bg: #ffffff;
+    --chip-active-text: #0f0f0f;
+    --chip-bg: #272727;
+    --chip-text: #ffffff;
+    --search-bg: #121212;
+    --search-border: #303030;
+    --search-btn-bg: #222222;
+    --radius: 12px;
+    --radius-sm: 8px;
+    --radius-full: 9999px;
+    --header-height: 56px;
+    --allow-color: #48bb78;
+    --block-color: #fc8181;
+    --constraint-color: #7c9bf5;
   }
 
-  /* ── Header ── */
-  header {
-    background: linear-gradient(135deg, var(--primary), #7c3aed);
-    color: white;
-    padding: 14px 24px;
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Roboto', Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text-primary);
+    min-height: 100vh;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Header */
+  .header {
+    background: var(--bg);
+    height: var(--header-height);
+    padding: 0 16px;
     display: flex;
     align-items: center;
     gap: 16px;
     position: sticky;
     top: 0;
     z-index: 100;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    border-bottom: 1px solid var(--border);
   }
-  .logo {
-    font-size: 26px;
-    font-weight: 800;
-    letter-spacing: -0.5px;
+  .header-logo {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .header-logo svg { height: 20px; }
+  .header-search {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+  }
+  .header-search-inner {
+    display: flex;
+    max-width: 540px;
+    width: 100%;
+    align-items: center;
+  }
+  .search-input {
+    flex: 1;
+    background: var(--search-bg);
+    border: 1px solid var(--search-border);
+    border-right: none;
+    border-radius: 20px 0 0 20px;
+    padding: 8px 16px;
+    color: var(--text-primary);
+    font-size: 14px;
+    outline: none;
+    font-family: inherit;
+  }
+  .search-input::placeholder { color: var(--text-tertiary); }
+  .search-input:focus { border-color: #1c62b9; }
+  .search-btn {
+    background: var(--search-btn-bg);
+    border: 1px solid var(--search-border);
+    border-radius: 0 20px 20px 0;
+    padding: 0 20px;
+    height: 36px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .search-btn svg { fill: var(--text-primary); }
+  .mic-btn {
+    background: var(--elevated);
+    border: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    margin-left: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .mic-btn svg { fill: var(--text-primary); }
+  .header-right {
     display: flex;
     align-items: center;
     gap: 8px;
     flex-shrink: 0;
   }
-  .logo svg { width: 32px; height: 32px; }
-  .search-box {
-    flex: 1;
-    max-width: 560px;
-    display: flex;
-    gap: 0;
-  }
-  .search-box input {
-    flex: 1;
-    padding: 10px 16px;
-    border: none;
-    border-radius: var(--radius) 0 0 var(--radius);
-    font-size: 15px;
-    outline: none;
-  }
-  .search-box button {
-    padding: 10px 20px;
-    background: rgba(255,255,255,0.2);
-    color: white;
-    border: none;
-    border-radius: 0 var(--radius) var(--radius) 0;
-    cursor: pointer;
-    font-size: 15px;
-    transition: background 0.2s;
-  }
-  .search-box button:hover { background: rgba(255,255,255,0.35); }
-  .settings-btn {
-    background: rgba(255,255,255,0.15);
-    border: none;
-    color: white;
-    width: 42px;
-    height: 42px;
+  .avatar {
+    width: 32px;
+    height: 32px;
     border-radius: 50%;
-    cursor: pointer;
-    font-size: 20px;
+    background: linear-gradient(135deg, #4285f4, #34a853);
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: background 0.2s;
+    color: white;
+    font-size: 14px;
+    font-weight: 500;
+  }
+  .search-icon-btn {
+    display: none;
+    background: none;
+    border: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+  .search-icon-btn svg { fill: var(--text-primary); }
+  .mobile-search-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: var(--header-height);
+    background: var(--bg);
+    z-index: 150;
+    padding: 8px;
+    align-items: center;
+    gap: 8px;
+  }
+  .mobile-search-overlay.active { display: flex; }
+  .mobile-search-back {
+    background: none;
+    border: none;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
     flex-shrink: 0;
   }
-  .settings-btn:hover { background: rgba(255,255,255,0.3); }
+  .mobile-search-back svg { fill: var(--text-primary); }
 
-  /* ── Setup screen ── */
-  .setup-screen {
-    max-width: 560px;
-    margin: 80px auto;
-    padding: 40px;
-    background: var(--card);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-    text-align: center;
-  }
-  .setup-screen h2 { margin-bottom: 8px; font-size: 24px; }
-  .setup-screen p { color: var(--text-light); margin-bottom: 24px; line-height: 1.6; }
-  .setup-screen input {
-    width: 100%;
+  /* Category Chips */
+  .chips-bar {
     padding: 12px 16px;
-    border: 2px solid var(--border);
-    border-radius: 10px;
-    font-size: 15px;
-    outline: none;
-    margin-bottom: 16px;
-    transition: border 0.2s;
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    border-bottom: 1px solid var(--border);
+    scrollbar-width: none;
+    -ms-overflow-style: none;
   }
-  .setup-screen input:focus { border-color: var(--primary); }
-  .setup-screen .btn-primary {
-    padding: 12px 32px;
-    background: var(--primary);
-    color: white;
-    border: none;
-    border-radius: 10px;
-    font-size: 16px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.2s;
-  }
-  .setup-screen .btn-primary:hover { background: var(--primary-hover); }
-  .setup-screen .instructions {
-    text-align: left;
-    background: #f7fafc;
-    padding: 20px;
-    border-radius: 10px;
-    margin-bottom: 24px;
-    font-size: 14px;
-    line-height: 1.8;
-  }
-  .setup-screen .instructions code {
-    background: #edf2f7;
-    padding: 2px 6px;
-    border-radius: 4px;
+  .chips-bar::-webkit-scrollbar { display: none; }
+  .chip {
+    padding: 6px 14px;
+    border-radius: var(--radius-sm);
     font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+    cursor: pointer;
+    border: none;
+    font-family: inherit;
+    transition: background 0.15s, color 0.15s;
   }
-  .setup-screen .instructions ol { padding-left: 20px; }
+  .chip.active {
+    background: var(--chip-active-bg);
+    color: var(--chip-active-text);
+  }
+  .chip:not(.active) {
+    background: var(--chip-bg);
+    color: var(--chip-text);
+  }
+  .chip:not(.active):hover { background: #3d3d3d; }
 
-  /* ── Main content ── */
-  main { padding: 24px; max-width: 1200px; margin: 0 auto; }
+  /* Main */
+  main { padding: 16px; max-width: 1284px; margin: 0 auto; }
 
-  /* ── Video grid ── */
+  /* Video Grid */
   .video-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 20px;
-    margin-top: 8px;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
   }
-  .video-card {
-    background: var(--card);
+  .video-card { cursor: pointer; }
+  .video-card:hover .video-title { color: var(--text-primary); }
+  .thumb-wrap {
+    position: relative;
     border-radius: var(--radius);
     overflow: hidden;
-    box-shadow: var(--shadow);
-    cursor: pointer;
-    transition: transform 0.15s, box-shadow 0.15s;
   }
-  .video-card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 6px 20px rgba(0,0,0,0.1);
-  }
-  .video-card .thumb {
+  .thumb-wrap img {
     width: 100%;
     aspect-ratio: 16/9;
     object-fit: cover;
     display: block;
+    background: var(--surface);
   }
-  .video-card .info { padding: 12px 14px; }
-  .video-card .title {
-    font-weight: 600;
+  .duration-badge {
+    position: absolute;
+    bottom: 6px;
+    right: 6px;
+    background: rgba(0,0,0,0.8);
+    color: #fff;
+    padding: 2px 4px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .video-meta {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+  }
+  .channel-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+  .video-title {
     font-size: 14px;
+    font-weight: 500;
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    color: var(--text-primary);
+  }
+  .video-channel {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 4px;
+  }
+  .video-stats {
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  /* Search Results */
+  .search-results {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .search-result {
+    display: flex;
+    gap: 16px;
+    cursor: pointer;
+  }
+  .search-result .thumb-wrap {
+    flex-shrink: 0;
+    width: 360px;
+  }
+  .search-result-info {
+    flex: 1;
+    min-width: 0;
+  }
+  .search-result-title {
+    font-size: 16px;
+    font-weight: 500;
     line-height: 1.4;
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
-    margin-bottom: 6px;
+    color: var(--text-primary);
   }
-  .video-card .channel {
+  .search-result-stats {
+    color: var(--text-secondary);
     font-size: 12px;
-    color: var(--text-light);
+    margin-top: 6px;
   }
-  .video-card .duration-badge {
-    position: absolute;
-    bottom: 8px;
-    right: 8px;
-    background: rgba(0,0,0,0.8);
-    color: white;
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-size: 11px;
-    font-weight: 600;
+  .search-result-channel {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
   }
-  .video-card .thumb-wrap {
-    position: relative;
+  .search-result-channel .channel-avatar {
+    width: 24px;
+    height: 24px;
+  }
+  .search-result-channel span {
+    color: var(--text-secondary);
+    font-size: 12px;
+  }
+  .search-result-desc {
+    color: var(--text-secondary);
+    font-size: 12px;
+    margin-top: 8px;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
 
-  /* ── Player overlay ── */
+  /* Player Overlay */
   .player-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,0.85);
+    background: rgba(0,0,0,0.88);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 200;
     padding: 20px;
   }
-  .player-container {
-    width: 100%;
-    max-width: 900px;
-    background: black;
+  .player-container { width: 100%; max-width: 680px; }
+  .player-close {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 8px;
+  }
+  .player-close-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.1);
+    border: none;
+    color: #fff;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .player-close-btn:hover { background: rgba(255,255,255,0.2); }
+  .player-body {
+    background: #000;
     border-radius: var(--radius);
     overflow: hidden;
-    position: relative;
   }
-  .player-container .close-btn {
-    position: absolute;
-    top: -44px;
-    right: 0;
-    background: rgba(255,255,255,0.2);
-    border: none;
-    color: white;
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    font-size: 20px;
-    cursor: pointer;
-    z-index: 10;
-  }
-  .player-container iframe {
+  .player-body iframe,
+  .player-body #yt-player-target {
     width: 100%;
     aspect-ratio: 16/9;
-    border: none;
     display: block;
+    border: none;
+  }
+  .player-info { padding: 16px; }
+  .player-title {
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--text-primary);
+  }
+  .player-channel-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 12px;
+  }
+  .player-channel-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+  .player-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+  }
+  .player-badge {
+    background: var(--surface);
+    padding: 6px 14px;
+    border-radius: var(--radius-full);
+    color: var(--text-primary);
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .player-error {
+    aspect-ratio: 16/9;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #1a1a2e;
+    color: white;
+    padding: 20px;
+    text-align: center;
+    gap: 16px;
+  }
+  .player-error a {
+    padding: 10px 24px;
+    background: var(--accent-red);
+    color: white;
+    border-radius: var(--radius-sm);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 14px;
   }
 
-  /* ── Settings modal ── */
+  /* Modal */
   .modal-overlay {
     position: fixed;
     inset: 0;
@@ -255,160 +439,261 @@
     padding: 20px;
   }
   .modal {
-    background: var(--card);
+    background: var(--elevated);
     border-radius: var(--radius);
     padding: 32px;
     max-width: 540px;
     width: 100%;
     max-height: 85vh;
     overflow-y: auto;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+    color: var(--text-primary);
   }
-  .modal h2 {
-    font-size: 22px;
-    margin-bottom: 4px;
-  }
+  .modal h2 { font-size: 20px; font-weight: 600; }
   .modal .subtitle {
-    color: var(--text-light);
-    font-size: 14px;
+    color: var(--text-secondary);
+    font-size: 13px;
+    margin-top: 4px;
     margin-bottom: 24px;
   }
-  .modal label {
-    display: block;
+  .settings-tier { margin-bottom: 24px; }
+  .settings-tier-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .settings-tier-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+  .settings-tier-title {
+    font-size: 14px;
     font-weight: 600;
-    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .settings-tier-hint {
+    color: var(--text-tertiary);
+    font-size: 11px;
+  }
+  .settings-tier-body {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .settings-label {
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 500;
     margin-bottom: 6px;
-    margin-top: 18px;
   }
-  .modal label:first-of-type { margin-top: 0; }
-  .modal input[type="text"],
-  .modal input[type="number"],
-  .modal input[type="password"],
-  .modal textarea {
+  .settings-input,
+  .settings-textarea,
+  .settings-select {
     width: 100%;
-    padding: 10px 14px;
-    border: 2px solid var(--border);
-    border-radius: 8px;
-    font-size: 14px;
-    outline: none;
-    transition: border 0.2s;
+    background: var(--search-bg);
+    border: 1px solid var(--search-border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    color: var(--text-primary);
+    font-size: 13px;
     font-family: inherit;
+    outline: none;
   }
-  .modal input:focus, .modal textarea:focus { border-color: var(--primary); }
-  .modal textarea { resize: vertical; min-height: 80px; }
-  .modal .hint {
-    font-size: 12px;
-    color: var(--text-light);
-    margin-top: 4px;
+  .settings-textarea {
+    resize: vertical;
+    min-height: 60px;
   }
-  .modal .btn-row {
+  .settings-input:focus,
+  .settings-textarea:focus,
+  .settings-select:focus {
+    border-color: var(--accent-blue);
+  }
+  .settings-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .settings-row .settings-input { width: 80px; text-align: center; }
+  .settings-btn-row {
     display: flex;
     gap: 10px;
-    margin-top: 28px;
     justify-content: flex-end;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    margin-top: 8px;
   }
-  .modal .btn-cancel {
-    padding: 10px 20px;
+  .btn-cancel {
+    padding: 8px 20px;
     background: transparent;
-    border: 2px solid var(--border);
-    border-radius: 8px;
-    font-size: 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-full);
+    color: var(--text-secondary);
+    font-size: 13px;
     cursor: pointer;
-    color: var(--text);
+    font-family: inherit;
   }
-  .modal .btn-save {
-    padding: 10px 24px;
-    background: var(--primary);
-    color: white;
+  .btn-cancel:hover { background: var(--surface); }
+  .btn-save {
+    padding: 8px 20px;
+    background: var(--accent-blue);
     border: none;
-    border-radius: 8px;
-    font-size: 14px;
+    border-radius: var(--radius-full);
+    color: var(--bg);
+    font-size: 13px;
     font-weight: 600;
     cursor: pointer;
+    font-family: inherit;
   }
-  .modal .btn-save:hover { background: var(--primary-hover); }
+  .btn-save:hover { opacity: 0.9; }
 
-  /* PIN prompt */
-  .pin-prompt {
-    text-align: center;
-  }
+  /* PIN */
+  .pin-prompt { text-align: center; }
   .pin-prompt input {
     max-width: 200px;
     margin: 16px auto;
     text-align: center;
     font-size: 24px;
     letter-spacing: 8px;
+    background: var(--search-bg);
+    border: 1px solid var(--search-border);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    padding: 10px;
+    outline: none;
+    display: block;
   }
-  .pin-prompt .error {
-    color: var(--accent);
+  .pin-prompt input:focus { border-color: var(--accent-blue); }
+  .pin-error {
+    color: var(--block-color);
     font-size: 13px;
     margin-top: 8px;
   }
 
-  /* ── Status / messages ── */
+  /* Setup */
+  .setup-screen {
+    max-width: 560px;
+    margin: 80px auto;
+    padding: 40px;
+    background: var(--elevated);
+    border-radius: var(--radius);
+    text-align: center;
+  }
+  .setup-screen h2 { font-size: 24px; margin-bottom: 8px; }
+  .setup-screen p { color: var(--text-secondary); margin-bottom: 24px; line-height: 1.6; }
+  .setup-screen input {
+    width: 100%;
+    padding: 12px 16px;
+    background: var(--search-bg);
+    border: 1px solid var(--search-border);
+    border-radius: 10px;
+    font-size: 15px;
+    color: var(--text-primary);
+    outline: none;
+    margin-bottom: 16px;
+  }
+  .setup-screen input:focus { border-color: var(--accent-blue); }
+  .setup-screen .instructions {
+    text-align: left;
+    background: var(--bg);
+    padding: 20px;
+    border-radius: 10px;
+    margin-bottom: 24px;
+    font-size: 14px;
+    line-height: 1.8;
+    color: var(--text-secondary);
+  }
+  .setup-screen .instructions strong { color: var(--text-primary); }
+  .setup-screen .instructions code {
+    background: var(--surface);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 13px;
+    color: var(--accent-blue);
+  }
+  .setup-screen .instructions ol { padding-left: 20px; }
+  .setup-screen .instructions a { color: var(--accent-blue); }
+  .btn-primary {
+    padding: 12px 32px;
+    background: var(--accent-blue);
+    color: var(--bg);
+    border: none;
+    border-radius: var(--radius-full);
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .btn-primary:hover { opacity: 0.9; }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* Status */
   .status-msg {
     text-align: center;
     padding: 60px 20px;
-    color: var(--text-light);
+    color: var(--text-secondary);
     font-size: 16px;
   }
   .status-msg .emoji { font-size: 48px; display: block; margin-bottom: 16px; }
 
-  /* ── Active filters bar ── */
-  .filter-bar {
+  /* Language list */
+  .lang-list {
     display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-bottom: 16px;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .lang-item {
+    display: flex;
     align-items: center;
+    gap: 8px;
+    background: var(--search-bg);
+    border: 1px solid var(--search-border);
+    border-radius: 6px;
+    padding: 6px 10px;
   }
-  .filter-tag {
-    background: #ebf4ff;
-    color: var(--primary);
-    padding: 4px 12px;
-    border-radius: 20px;
-    font-size: 12px;
-    font-weight: 600;
+  .lang-item-label {
+    flex: 1;
+    font-size: 13px;
+    color: var(--text-primary);
   }
-  .filter-bar .label {
-    font-size: 12px;
-    color: var(--text-light);
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+  .lang-item-priority {
+    font-size: 11px;
+    color: var(--text-tertiary);
   }
-
-  /* ── Suggested topics ── */
-  .topics {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    justify-content: center;
-    margin-top: 24px;
-  }
-  .topic-btn {
-    padding: 10px 20px;
-    background: var(--card);
-    border: 2px solid var(--border);
-    border-radius: 24px;
-    font-size: 14px;
+  .lang-item button {
+    background: none;
+    border: none;
+    color: var(--text-tertiary);
     cursor: pointer;
-    transition: all 0.15s;
-    font-weight: 500;
+    font-size: 16px;
+    padding: 2px 4px;
   }
-  .topic-btn:hover {
-    border-color: var(--primary);
-    color: var(--primary);
-    background: #ebf4ff;
-  }
+  .lang-item button:hover { color: var(--text-primary); }
 
-  /* ── Responsive ── */
-  @media (max-width: 600px) {
-    header { padding: 10px 14px; gap: 10px; }
-    .logo { font-size: 20px; }
-    .logo span { display: none; }
-    main { padding: 16px; }
-    .video-grid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+  /* Responsive */
+  @media (max-width: 1024px) {
+    .video-grid { grid-template-columns: repeat(3, 1fr); }
+  }
+  @media (max-width: 768px) {
+    .video-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 640px) {
+    .video-grid { grid-template-columns: 1fr; }
+    .header-search { display: none; }
+    .search-icon-btn { display: flex; }
+    .search-result { flex-direction: column; }
+    .search-result .thumb-wrap { width: 100%; }
+    .modal { padding: 20px; border-radius: var(--radius) var(--radius) 0 0; }
+    .player-container { max-width: 100%; }
+    .player-overlay { padding: 0; align-items: flex-start; }
+    .player-close { position: absolute; top: 8px; right: 8px; z-index: 10; }
+    .setup-screen { margin: 20px 16px; padding: 24px; }
   }
 </style>
 </head>
@@ -423,22 +708,24 @@
 <script type="text/babel">
 const { useState, useEffect, useRef, useCallback } = React;
 
-/* ─── Helpers ─── */
+/* ─── Constants ─── */
 const DEFAULT_SETTINGS = {
   apiKey: '',
   parentPin: '1234',
-  maxDuration: 10,       // minutes
-  blockedKeywords: '',    // comma-separated
-  allowedChannels: '',    // comma-separated channel names
-  safeSearch: 'strict',   // strict | moderate | none
+  maxDuration: 10,
+  blockedKeywords: '',
+  blockedChannels: '',
+  allowedChannels: '',
+  safeSearch: 'strict',
+  languages: [],
 };
 
-const SUGGESTED_TOPICS = [
-  'Dinosaurs', 'Space for kids', 'Lego building', 'Animal facts',
-  'Science experiments kids', 'Drawing tutorial kids', 'Funny cats',
-  'Magic tricks for kids', 'Nature documentary kids', 'Cartoon music'
+const TOPICS = [
+  'Dinosaurs', 'Space', 'Lego', 'Animals', 'Science',
+  'Drawing', 'Music', 'Magic Tricks', 'Nature', 'Cartoons',
 ];
 
+/* ─── Settings persistence ─── */
 function loadSettings() {
   try {
     const raw = localStorage.getItem('kidtube_settings');
@@ -449,8 +736,8 @@ function saveSettings(s) {
   localStorage.setItem('kidtube_settings', JSON.stringify(s));
 }
 
+/* ─── Duration helpers ─── */
 function parseDuration(iso) {
-  // PT#H#M#S
   const m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
   if (!m) return 0;
   return (parseInt(m[1]||0)*3600) + (parseInt(m[2]||0)*60) + parseInt(m[3]||0);
@@ -463,21 +750,104 @@ function fmtDuration(seconds) {
   return `${m}:${String(s).padStart(2,'0')}`;
 }
 
-function getBlockedList(str) {
-  return str.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+/* ─── View count formatter ─── */
+function fmtViews(n) {
+  if (!n) return '';
+  const num = parseInt(n);
+  if (num >= 1_000_000) return (num / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M views';
+  if (num >= 1_000) return (num / 1_000).toFixed(1).replace(/\.0$/, '') + 'K views';
+  return num + ' views';
 }
 
-/* ─── YouTube API calls ─── */
-async function searchYouTube(apiKey, query, pageToken = '') {
+/* ─── Relative time ─── */
+function fmtTimeAgo(dateStr) {
+  if (!dateStr) return '';
+  const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+  const intervals = [
+    [31536000, 'year'], [2592000, 'month'], [604800, 'week'],
+    [86400, 'day'], [3600, 'hour'], [60, 'minute'],
+  ];
+  for (const [secs, label] of intervals) {
+    const count = Math.floor(seconds / secs);
+    if (count >= 1) return `${count} ${label}${count > 1 ? 's' : ''} ago`;
+  }
+  return 'just now';
+}
+
+/* ─── CSV parsing ─── */
+function parseList(str) {
+  return (str || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+}
+
+/* ─── 3-Tier Filter Pipeline ─── */
+const ALLOW_FILTERS = [
+  function allowedChannels(video, settings) {
+    const allowed = parseList(settings.allowedChannels);
+    if (allowed.length === 0) return 'pass';
+    const ch = video.snippet.channelTitle.toLowerCase();
+    return allowed.some(a => ch.includes(a) || a.includes(ch)) ? 'allow' : 'pass';
+  },
+];
+
+const BLOCK_FILTERS = [
+  function blockedKeywords(video, settings) {
+    const blocked = parseList(settings.blockedKeywords);
+    if (blocked.length === 0) return 'pass';
+    const text = (video.snippet.title + ' ' + (video.snippet.description || '')).toLowerCase();
+    return blocked.some(kw => text.includes(kw)) ? 'block' : 'pass';
+  },
+  function blockedChannels(video, settings) {
+    const blocked = parseList(settings.blockedChannels);
+    if (blocked.length === 0) return 'pass';
+    const ch = video.snippet.channelTitle.toLowerCase();
+    return blocked.some(b => ch.includes(b) || b.includes(ch)) ? 'block' : 'pass';
+  },
+];
+
+const CONSTRAINT_FILTERS = [
+  function maxDuration(video, settings) {
+    const maxSec = (settings.maxDuration || 10) * 60;
+    return video.durationSec > maxSec ? 'block' : 'pass';
+  },
+  function languageFilter(video, settings) {
+    const langs = settings.languages || [];
+    if (langs.length === 0) return 'pass';
+    const videoLang = (video.snippet.defaultLanguage || video.snippet.defaultAudioLanguage || '').toLowerCase();
+    if (!videoLang) return 'pass';
+    return langs.some(l => videoLang.startsWith(l.toLowerCase())) ? 'pass' : 'block';
+  },
+];
+
+function runFilterPipeline(videos, settings) {
+  return videos.filter(video => {
+    for (const fn of ALLOW_FILTERS) {
+      if (fn(video, settings) === 'allow') return true;
+    }
+    for (const fn of BLOCK_FILTERS) {
+      if (fn(video, settings) === 'block') return false;
+    }
+    for (const fn of CONSTRAINT_FILTERS) {
+      if (fn(video, settings) === 'block') return false;
+    }
+    return true;
+  });
+}
+
+/* ─── YouTube API ─── */
+async function searchYouTube(apiKey, query, settings, pageToken = '') {
   const params = new URLSearchParams({
     part: 'snippet',
-    q: query,
+    q: query + ' for kids',
     type: 'video',
     maxResults: '24',
-    safeSearch: 'strict',
+    safeSearch: settings.safeSearch || 'strict',
     key: apiKey,
     ...(pageToken ? { pageToken } : {}),
   });
+  const langs = settings.languages || [];
+  if (langs.length > 0) {
+    params.set('relevanceLanguage', langs[0]);
+  }
   const resp = await fetch(`https://www.googleapis.com/youtube/v3/search?${params}`);
   if (!resp.ok) throw new Error(`YouTube search failed (${resp.status})`);
   return resp.json();
@@ -496,12 +866,93 @@ async function getVideoDetails(apiKey, ids) {
 
 /* ─── Components ─── */
 
-function Logo() {
+function YTLogo({ onTripleTap }) {
+  const tapRef = useRef([]);
+
+  function handleTap() {
+    const now = Date.now();
+    tapRef.current.push(now);
+    tapRef.current = tapRef.current.filter(t => now - t < 500);
+    if (tapRef.current.length >= 3) {
+      tapRef.current = [];
+      onTripleTap();
+    }
+  }
+
   return (
-    <div className="logo">
-      <svg viewBox="0 0 32 32" fill="none"><rect width="32" height="32" rx="8" fill="white" fillOpacity="0.2"/><polygon points="13,9 13,23 24,16" fill="white"/></svg>
-      <span>KidTube</span>
+    <div className="header-logo" onClick={handleTap}>
+      <svg viewBox="0 0 120 20" xmlns="http://www.w3.org/2000/svg">
+        <rect x="0" y="0" width="28" height="20" rx="4" fill="#ff0000"/>
+        <polygon points="11,4 11,16 21,10" fill="white"/>
+        <text x="33" y="15" fill="white" fontSize="16" fontWeight="700" fontFamily="Roboto, Arial, sans-serif">YouTube</text>
+      </svg>
     </div>
+  );
+}
+
+function Header({ query, onQueryChange, onSearch, onTripleTap }) {
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const mobileInputRef = useRef();
+
+  useEffect(() => {
+    if (mobileSearchOpen && mobileInputRef.current) {
+      mobileInputRef.current.focus();
+    }
+  }, [mobileSearchOpen]);
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    onSearch();
+    setMobileSearchOpen(false);
+  }
+
+  return (
+    <>
+      <header className="header">
+        <YTLogo onTripleTap={onTripleTap} />
+        <div className="header-search">
+          <form className="header-search-inner" onSubmit={handleSubmit}>
+            <input
+              className="search-input"
+              type="text"
+              placeholder="Search"
+              value={query}
+              onChange={e => onQueryChange(e.target.value)}
+            />
+            <button className="search-btn" type="submit">
+              <svg width="20" height="20" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+            </button>
+            <button className="mic-btn" type="button" tabIndex={-1}>
+              <svg width="20" height="20" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1-9c0-.55.45-1 1-1s1 .45 1 1v6c0 .55-.45 1-1 1s-1-.45-1-1V5z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+            </button>
+          </form>
+        </div>
+        <button className="search-icon-btn" onClick={() => setMobileSearchOpen(true)}>
+          <svg width="24" height="24" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+        </button>
+        <div className="header-right">
+          <div className="avatar">K</div>
+        </div>
+      </header>
+      {mobileSearchOpen && (
+        <div className="mobile-search-overlay active">
+          <button className="mobile-search-back" onClick={() => setMobileSearchOpen(false)}>
+            <svg width="24" height="24" viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+          </button>
+          <form style={{flex:1, display:'flex'}} onSubmit={handleSubmit}>
+            <input
+              ref={mobileInputRef}
+              className="search-input"
+              style={{borderRadius:20, borderRight:'1px solid var(--search-border)'}}
+              type="text"
+              placeholder="Search YouTube"
+              value={query}
+              onChange={e => onQueryChange(e.target.value)}
+            />
+          </form>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -510,8 +961,8 @@ function SetupScreen({ onSave }) {
   const [pin, setPin] = useState('1234');
   return (
     <div className="setup-screen">
-      <h2>Welcome to KidTube</h2>
-      <p>A safer YouTube experience for your kid. Let's get set up — this only takes a minute.</p>
+      <h2>Welcome to YouTube</h2>
+      <p>Let's get set up — this only takes a minute.</p>
       <div className="instructions">
         <strong>How to get a free YouTube API key:</strong>
         <ol>
@@ -524,7 +975,6 @@ function SetupScreen({ onSave }) {
           <li>Copy the key and paste it below</li>
         </ol>
         <p style={{marginTop:'10px'}}>The free tier gives you ~10,000 units/day — plenty for casual use.</p>
-        <p style={{marginTop:'10px'}}><strong>Important:</strong> Open this page via a local server, not as a file. The easiest way: open a terminal in the folder with this file and run <code>python3 -m http.server 8080</code>, then visit <code>http://localhost:8080/kidtube.html</code></p>
       </div>
       <input
         type="text"
@@ -532,7 +982,7 @@ function SetupScreen({ onSave }) {
         value={key}
         onChange={e => setKey(e.target.value)}
       />
-      <label style={{display:'block', textAlign:'left', fontWeight:600, fontSize:14, marginBottom:6}}>
+      <label style={{display:'block', textAlign:'left', fontWeight:600, fontSize:14, marginBottom:6, color:'var(--text-secondary)'}}>
         Parent PIN (to access settings later)
       </label>
       <input
@@ -566,7 +1016,7 @@ function PinPrompt({ onSuccess, onCancel, correctPin }) {
     <div className="modal-overlay" onClick={onCancel}>
       <div className="modal pin-prompt" onClick={e => e.stopPropagation()}>
         <h2>Parent Access</h2>
-        <p style={{color:'var(--text-light)', marginTop:4}}>Enter your PIN to open settings</p>
+        <p style={{color:'var(--text-secondary)', marginTop:4}}>Enter your PIN to open settings</p>
         <input
           type="password"
           maxLength={6}
@@ -580,8 +1030,8 @@ function PinPrompt({ onSuccess, onCancel, correctPin }) {
             }
           }}
         />
-        {error && <div className="error">{error}</div>}
-        <div className="btn-row" style={{justifyContent:'center'}}>
+        {error && <div className="pin-error">{error}</div>}
+        <div className="settings-btn-row" style={{justifyContent:'center', borderTop:'none', paddingTop:0}}>
           <button className="btn-cancel" onClick={onCancel}>Cancel</button>
           <button className="btn-save" onClick={() => {
             if (pin === correctPin) onSuccess();
@@ -593,50 +1043,159 @@ function PinPrompt({ onSuccess, onCancel, correctPin }) {
   );
 }
 
+function LanguageList({ languages, onChange }) {
+  function addLang() {
+    const code = prompt('Enter language code (e.g. fr, en, es, de):');
+    if (code && code.trim()) {
+      onChange([...languages, code.trim().toLowerCase()]);
+    }
+  }
+  function removeLang(idx) {
+    onChange(languages.filter((_, i) => i !== idx));
+  }
+  function moveLang(idx, dir) {
+    const arr = [...languages];
+    const target = idx + dir;
+    if (target < 0 || target >= arr.length) return;
+    [arr[idx], arr[target]] = [arr[target], arr[idx]];
+    onChange(arr);
+  }
+
+  const LANG_NAMES = {
+    en:'English', fr:'French', es:'Spanish', de:'German', it:'Italian',
+    pt:'Portuguese', nl:'Dutch', ru:'Russian', ja:'Japanese', ko:'Korean',
+    zh:'Chinese', ar:'Arabic', hi:'Hindi', sv:'Swedish', pl:'Polish',
+    ro:'Romanian', tr:'Turkish',
+  };
+
+  return (
+    <div>
+      <div className="lang-list">
+        {languages.map((lang, i) => (
+          <div key={i} className="lang-item">
+            <span className="lang-item-label">{LANG_NAMES[lang] || lang}</span>
+            <span className="lang-item-priority">{i === 0 ? 'primary' : 'fallback'}</span>
+            <button onClick={() => moveLang(i, -1)} title="Move up">&#8593;</button>
+            <button onClick={() => moveLang(i, 1)} title="Move down">&#8595;</button>
+            <button onClick={() => removeLang(i)} title="Remove">&#215;</button>
+          </div>
+        ))}
+      </div>
+      <button
+        onClick={addLang}
+        style={{
+          marginTop:8, padding:'6px 14px', background:'var(--surface)',
+          border:'1px solid var(--border)', borderRadius:6, color:'var(--text-secondary)',
+          fontSize:12, cursor:'pointer', fontFamily:'inherit',
+        }}
+      >+ Add language</button>
+    </div>
+  );
+}
+
 function SettingsModal({ settings, onSave, onCancel }) {
   const [s, setS] = useState({ ...settings });
   const upd = (k, v) => setS(prev => ({ ...prev, [k]: v }));
+
   return (
     <div className="modal-overlay" onClick={onCancel}>
       <div className="modal" onClick={e => e.stopPropagation()}>
         <h2>Parent Settings</h2>
         <div className="subtitle">Control what your kid can see</div>
 
-        <label>Max Video Duration (minutes)</label>
-        <input type="number" min={1} max={120} value={s.maxDuration}
-          onChange={e => upd('maxDuration', parseInt(e.target.value) || 1)} />
-        <div className="hint">Videos longer than this will be hidden. Currently {s.maxDuration} min.</div>
+        <div className="settings-tier">
+          <div className="settings-tier-header">
+            <div className="settings-tier-dot" style={{background:'var(--allow-color)'}}></div>
+            <div className="settings-tier-title" style={{color:'var(--allow-color)'}}>Allow Rules</div>
+            <div className="settings-tier-hint">(always shown, override blocks)</div>
+          </div>
+          <div className="settings-tier-body">
+            <div>
+              <div className="settings-label">Allowed Channels</div>
+              <textarea className="settings-textarea" value={s.allowedChannels}
+                onChange={e => upd('allowedChannels', e.target.value)}
+                placeholder="e.g. Cocomelon, National Geographic Kids, SciShow Kids" />
+            </div>
+          </div>
+        </div>
 
-        <label>Blocked Keywords</label>
-        <textarea value={s.blockedKeywords}
-          onChange={e => upd('blockedKeywords', e.target.value)}
-          placeholder="e.g. prank, unboxing, scary, horror, gun, violence" />
-        <div className="hint">Comma-separated. Videos whose title or description contain these words will be filtered out.</div>
+        <div className="settings-tier">
+          <div className="settings-tier-header">
+            <div className="settings-tier-dot" style={{background:'var(--block-color)'}}></div>
+            <div className="settings-tier-title" style={{color:'var(--block-color)'}}>Block Rules</div>
+            <div className="settings-tier-hint">(hidden from results)</div>
+          </div>
+          <div className="settings-tier-body">
+            <div>
+              <div className="settings-label">Blocked Keywords</div>
+              <textarea className="settings-textarea" value={s.blockedKeywords}
+                onChange={e => upd('blockedKeywords', e.target.value)}
+                placeholder="e.g. prank, unboxing, scary, horror, gun, violence" />
+            </div>
+            <div>
+              <div className="settings-label">Blocked Channels</div>
+              <textarea className="settings-textarea" value={s.blockedChannels || ''}
+                onChange={e => upd('blockedChannels', e.target.value)}
+                placeholder="e.g. 5-Minute Crafts, Troom Troom" />
+            </div>
+          </div>
+        </div>
 
-        <label>Allowed Channels (optional)</label>
-        <textarea value={s.allowedChannels}
-          onChange={e => upd('allowedChannels', e.target.value)}
-          placeholder="e.g. Cocomelon, National Geographic Kids, SciShow Kids" />
-        <div className="hint">Comma-separated. If set, ONLY videos from these channels will appear. Leave empty to allow all channels.</div>
+        <div className="settings-tier">
+          <div className="settings-tier-header">
+            <div className="settings-tier-dot" style={{background:'var(--constraint-color)'}}></div>
+            <div className="settings-tier-title" style={{color:'var(--constraint-color)'}}>Constraints</div>
+            <div className="settings-tier-hint">(must pass all)</div>
+          </div>
+          <div className="settings-tier-body">
+            <div className="settings-row">
+              <div className="settings-label" style={{marginBottom:0}}>Max Duration (min)</div>
+              <input className="settings-input" type="number" min={1} max={120}
+                value={s.maxDuration}
+                onChange={e => upd('maxDuration', parseInt(e.target.value) || 1)} />
+            </div>
+            <div>
+              <div className="settings-label">Languages (ordered by priority)</div>
+              <LanguageList
+                languages={s.languages || []}
+                onChange={langs => upd('languages', langs)}
+              />
+            </div>
+            <div className="settings-row">
+              <div className="settings-label" style={{marginBottom:0}}>SafeSearch</div>
+              <select className="settings-select" style={{width:'auto'}}
+                value={s.safeSearch} onChange={e => upd('safeSearch', e.target.value)}>
+                <option value="strict">Strict</option>
+                <option value="moderate">Moderate</option>
+                <option value="none">None</option>
+              </select>
+            </div>
+          </div>
+        </div>
 
-        <label>Safe Search</label>
-        <select value={s.safeSearch} onChange={e => upd('safeSearch', e.target.value)}
-          style={{width:'100%',padding:'10px 14px',border:'2px solid var(--border)',borderRadius:8,fontSize:14}}>
-          <option value="strict">Strict (recommended)</option>
-          <option value="moderate">Moderate</option>
-          <option value="none">None</option>
-        </select>
+        <div className="settings-tier">
+          <div className="settings-tier-header">
+            <div className="settings-tier-dot" style={{background:'var(--text-tertiary)'}}></div>
+            <div className="settings-tier-title" style={{color:'var(--text-tertiary)'}}>System</div>
+          </div>
+          <div className="settings-tier-body">
+            <div>
+              <div className="settings-label">YouTube API Key</div>
+              <input className="settings-input" type="text" value={s.apiKey}
+                onChange={e => upd('apiKey', e.target.value)} />
+            </div>
+            <div>
+              <div className="settings-label">Parent PIN</div>
+              <input className="settings-input" type="password" value={s.parentPin}
+                onChange={e => upd('parentPin', e.target.value)}
+                style={{maxWidth:200, letterSpacing:6}} maxLength={6} />
+            </div>
+          </div>
+        </div>
 
-        <label>YouTube API Key</label>
-        <input type="text" value={s.apiKey} onChange={e => upd('apiKey', e.target.value)} />
-
-        <label>Parent PIN</label>
-        <input type="password" value={s.parentPin} onChange={e => upd('parentPin', e.target.value)}
-          style={{maxWidth:200, letterSpacing:6}} maxLength={6} />
-
-        <div className="btn-row">
+        <div className="settings-btn-row">
           <button className="btn-cancel" onClick={onCancel}>Cancel</button>
-          <button className="btn-save" onClick={() => { saveSettings(s); onSave(s); }}>Save Settings</button>
+          <button className="btn-save" onClick={() => { saveSettings(s); onSave(s); }}>Save</button>
         </div>
       </div>
     </div>
@@ -647,7 +1206,7 @@ function VideoCard({ video, onClick }) {
   return (
     <div className="video-card" onClick={() => onClick(video.id)}>
       <div className="thumb-wrap">
-        <img className="thumb"
+        <img
           src={video.snippet.thumbnails.medium?.url || video.snippet.thumbnails.default?.url}
           alt={video.snippet.title}
           loading="lazy" />
@@ -655,23 +1214,76 @@ function VideoCard({ video, onClick }) {
           <div className="duration-badge">{fmtDuration(video.durationSec)}</div>
         )}
       </div>
-      <div className="info">
-        <div className="title" dangerouslySetInnerHTML={{ __html: video.snippet.title }} />
-        <div className="channel">{video.snippet.channelTitle}</div>
+      <div className="video-meta">
+        <div className="channel-avatar"></div>
+        <div>
+          <div className="video-title">{video.snippet.title}</div>
+          <div className="video-channel">{video.snippet.channelTitle}</div>
+          <div className="video-stats">
+            {fmtViews(video.statistics?.viewCount)}
+            {video.snippet.publishedAt ? ` \u00b7 ${fmtTimeAgo(video.snippet.publishedAt)}` : ''}
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
-function PlayerOverlay({ videoId, onClose }) {
+function SearchResult({ video, onClick }) {
+  return (
+    <div className="search-result" onClick={() => onClick(video.id)}>
+      <div className="thumb-wrap">
+        <img
+          src={video.snippet.thumbnails.medium?.url || video.snippet.thumbnails.default?.url}
+          alt={video.snippet.title}
+          loading="lazy" />
+        {video.durationSec != null && (
+          <div className="duration-badge">{fmtDuration(video.durationSec)}</div>
+        )}
+      </div>
+      <div className="search-result-info">
+        <div className="search-result-title">{video.snippet.title}</div>
+        <div className="search-result-stats">
+          {fmtViews(video.statistics?.viewCount)}
+          {video.snippet.publishedAt ? ` \u00b7 ${fmtTimeAgo(video.snippet.publishedAt)}` : ''}
+        </div>
+        <div className="search-result-channel">
+          <div className="channel-avatar"></div>
+          <span>{video.snippet.channelTitle}</span>
+        </div>
+        {video.snippet.description && (
+          <div className="search-result-desc">{video.snippet.description}</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ChipsBar({ topics, activeTopic, onSelect }) {
+  return (
+    <div className="chips-bar">
+      <button
+        className={'chip' + (activeTopic === null ? ' active' : '')}
+        onClick={() => onSelect(null)}
+      >All</button>
+      {topics.map(t => (
+        <button
+          key={t}
+          className={'chip' + (activeTopic === t ? ' active' : '')}
+          onClick={() => onSelect(t)}
+        >{t}</button>
+      ))}
+    </div>
+  );
+}
+
+function PlayerOverlay({ video, onClose }) {
   const playerRef = useRef(null);
-  const containerRef = useRef(null);
   const [playerError, setPlayerError] = useState(null);
 
   useEffect(() => {
     setPlayerError(null);
 
-    // Load the IFrame API if not already loaded
     if (!window.YT) {
       const tag = document.createElement('script');
       tag.src = 'https://www.youtube.com/iframe_api';
@@ -683,7 +1295,7 @@ function PlayerOverlay({ videoId, onClose }) {
         try { playerRef.current.destroy(); } catch {}
       }
       playerRef.current = new window.YT.Player('yt-player-target', {
-        videoId,
+        videoId: video.id,
         width: '100%',
         height: '100%',
         playerVars: {
@@ -694,25 +1306,17 @@ function PlayerOverlay({ videoId, onClose }) {
         },
         events: {
           onError: (event) => {
-            // 2=invalid id, 5=HTML5 error, 100=not found, 101/150=embed disallowed
             const code = event.data;
-            if (code === 101 || code === 150) {
-              setPlayerError('embed');
-            } else if (code === 100) {
-              setPlayerError('notfound');
-            } else {
-              setPlayerError('generic');
-            }
+            if (code === 101 || code === 150) setPlayerError('embed');
+            else if (code === 100) setPlayerError('notfound');
+            else setPlayerError('generic');
           },
         },
       });
     }
 
-    if (window.YT && window.YT.Player) {
-      createPlayer();
-    } else {
-      window.onYouTubeIframeAPIReady = createPlayer;
-    }
+    if (window.YT && window.YT.Player) createPlayer();
+    else window.onYouTubeIframeAPIReady = createPlayer;
 
     return () => {
       if (playerRef.current) {
@@ -720,61 +1324,60 @@ function PlayerOverlay({ videoId, onClose }) {
         playerRef.current = null;
       }
     };
-  }, [videoId]);
+  }, [video.id]);
 
-  const ytLink = `https://www.youtube.com/watch?v=${videoId}`;
+  const ytLink = `https://www.youtube.com/watch?v=${video.id}`;
 
   return (
     <div className="player-overlay" onClick={onClose}>
       <div className="player-container" onClick={e => e.stopPropagation()}>
-        <button className="close-btn" onClick={onClose}>✕</button>
-        {playerError ? (
-          <div style={{
-            aspectRatio:'16/9', display:'flex', flexDirection:'column',
-            alignItems:'center', justifyContent:'center', background:'#1a1a2e',
-            color:'white', padding:'20px', textAlign:'center', gap:'16px',
-            borderRadius:'var(--radius)'
-          }}>
-            <div style={{fontSize:'36px'}}>
-              {playerError === 'embed' ? '🔒' : playerError === 'notfound' ? '🔍' : '⚠️'}
+        <div className="player-close">
+          <button className="player-close-btn" onClick={onClose}>&#10005;</button>
+        </div>
+        <div className="player-body">
+          {playerError ? (
+            <div className="player-error">
+              <div style={{fontSize:'36px'}}>
+                {playerError === 'embed' ? '\ud83d\udd12' : playerError === 'notfound' ? '\ud83d\udd0d' : '\u26a0\ufe0f'}
+              </div>
+              <div style={{fontSize:'16px', maxWidth:'400px', lineHeight:'1.5'}}>
+                {playerError === 'embed'
+                  ? "This video doesn't allow embedded playback."
+                  : playerError === 'notfound'
+                  ? "This video wasn't found or has been removed."
+                  : "Something went wrong loading this video."}
+              </div>
+              {playerError === 'embed' && (
+                <a href={ytLink} target="_blank" rel="noopener noreferrer">
+                  Watch on YouTube.com
+                </a>
+              )}
             </div>
-            <div style={{fontSize:'16px', maxWidth:'400px', lineHeight:'1.5'}}>
-              {playerError === 'embed'
-                ? "This video doesn't allow embedded playback."
-                : playerError === 'notfound'
-                ? "This video wasn't found or has been removed."
-                : "Something went wrong loading this video."}
+          ) : (
+            <div id="yt-player-target" style={{width:'100%', aspectRatio:'16/9'}} />
+          )}
+          <div className="player-info">
+            <div className="player-title">{video.snippet.title}</div>
+            <div className="player-channel-row">
+              <div className="channel-avatar"></div>
+              <div>
+                <div className="player-channel-name">{video.snippet.channelTitle}</div>
+              </div>
             </div>
-            {playerError === 'embed' && (
-              <a href={ytLink} target="_blank" rel="noopener noreferrer"
-                style={{
-                  padding:'10px 24px', background:'#ff0000', color:'white',
-                  borderRadius:'8px', textDecoration:'none', fontWeight:600, fontSize:'14px'
-                }}>
-                Watch on YouTube.com
-              </a>
-            )}
+            <div className="player-badges">
+              {video.statistics?.likeCount && (
+                <span className="player-badge">{'\ud83d\udc4d'} {fmtViews(video.statistics.likeCount).replace(' views','')}</span>
+              )}
+              {video.statistics?.viewCount && (
+                <span className="player-badge">{fmtViews(video.statistics.viewCount)}</span>
+              )}
+              {video.snippet.publishedAt && (
+                <span className="player-badge">{fmtTimeAgo(video.snippet.publishedAt)}</span>
+              )}
+            </div>
           </div>
-        ) : (
-          <div id="yt-player-target" style={{width:'100%', aspectRatio:'16/9'}} />
-        )}
+        </div>
       </div>
-    </div>
-  );
-}
-
-function FilterBar({ settings }) {
-  const tags = [];
-  tags.push(`Max ${settings.maxDuration} min`);
-  if (settings.safeSearch === 'strict') tags.push('SafeSearch: strict');
-  const blocked = getBlockedList(settings.blockedKeywords);
-  if (blocked.length) tags.push(`${blocked.length} blocked keyword${blocked.length>1?'s':''}`);
-  const allowed = getBlockedList(settings.allowedChannels);
-  if (allowed.length) tags.push(`${allowed.length} allowed channel${allowed.length>1?'s':''}`);
-  return (
-    <div className="filter-bar">
-      <span className="label">Active filters:</span>
-      {tags.map((t,i) => <span key={i} className="filter-tag">{t}</span>)}
     </div>
   );
 }
@@ -786,43 +1389,22 @@ function App() {
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [playingId, setPlayingId] = useState(null);
+  const [playingVideo, setPlayingVideo] = useState(null);
   const [showPin, setShowPin] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [hasSearched, setHasSearched] = useState(false);
-  const inputRef = useRef();
+  const [activeTopic, setActiveTopic] = useState(null);
+  const [isSearchView, setIsSearchView] = useState(false);
+  const [searchFilter, setSearchFilter] = useState('all');
+  const [initialLoaded, setInitialLoaded] = useState(false);
 
   const isSetup = Boolean(settings.apiKey);
 
-  /* ── Filter logic ── */
-  function filterVideos(items) {
-    const maxSec = settings.maxDuration * 60;
-    const blocked = getBlockedList(settings.blockedKeywords);
-    const allowed = getBlockedList(settings.allowedChannels);
-
-    return items.filter(v => {
-      // Duration filter
-      if (v.durationSec > maxSec) return false;
-      // Blocked keywords
-      const text = (v.snippet.title + ' ' + (v.snippet.description || '')).toLowerCase();
-      if (blocked.some(kw => text.includes(kw))) return false;
-      // Allowed channels
-      if (allowed.length > 0) {
-        const ch = v.snippet.channelTitle.toLowerCase();
-        if (!allowed.some(a => ch.includes(a) || a.includes(ch))) return false;
-      }
-      return true;
-    });
-  }
-
-  /* ── Search ── */
-  const doSearch = useCallback(async (q) => {
+  const doSearch = useCallback(async (q, isTopicSearch = false) => {
     if (!q.trim() || !settings.apiKey) return;
     setLoading(true);
     setError('');
-    setHasSearched(true);
     try {
-      const searchResp = await searchYouTube(settings.apiKey, q + ' for kids');
+      const searchResp = await searchYouTube(settings.apiKey, q, settings);
       const ids = searchResp.items.map(i => i.id.videoId).filter(Boolean);
       if (!ids.length) { setVideos([]); setLoading(false); return; }
       const detailResp = await getVideoDetails(settings.apiKey, ids);
@@ -830,88 +1412,138 @@ function App() {
         ...item,
         durationSec: parseDuration(item.contentDetails.duration),
       }));
-      setVideos(filterVideos(enriched));
+      setVideos(runFilterPipeline(enriched, settings));
+      if (!isTopicSearch) setIsSearchView(true);
     } catch (err) {
       setError(err.message || 'Something went wrong');
     }
     setLoading(false);
   }, [settings]);
 
-  const handleSearch = (e) => {
-    e?.preventDefault();
-    doSearch(query);
-  };
+  useEffect(() => {
+    if (isSetup && !initialLoaded) {
+      setInitialLoaded(true);
+      const randomTopic = TOPICS[Math.floor(Math.random() * TOPICS.length)];
+      setActiveTopic(null);
+      doSearch(randomTopic, true);
+    }
+  }, [isSetup, initialLoaded, doSearch]);
 
-  /* ── Keyboard: close player on Escape ── */
+  function handleChipSelect(topic) {
+    setActiveTopic(topic);
+    setIsSearchView(false);
+    setSearchFilter('all');
+    const q = topic || TOPICS[Math.floor(Math.random() * TOPICS.length)];
+    doSearch(q, true);
+  }
+
+  function handleSearch() {
+    if (query.trim()) {
+      setActiveTopic(null);
+      doSearch(query, false);
+    }
+  }
+
+  function getFilteredVideos() {
+    if (searchFilter === 'short') return videos.filter(v => v.durationSec <= 240);
+    if (searchFilter === 'recent') {
+      return [...videos].sort((a, b) =>
+        new Date(b.snippet.publishedAt) - new Date(a.snippet.publishedAt)
+      );
+    }
+    return videos;
+  }
+
   useEffect(() => {
     const handler = (e) => {
       if (e.key === 'Escape') {
-        if (playingId) setPlayingId(null);
+        if (playingVideo) setPlayingVideo(null);
         else if (showSettings) setShowSettings(false);
         else if (showPin) setShowPin(false);
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [playingId, showSettings, showPin]);
+  }, [playingVideo, showSettings, showPin]);
 
-  /* ── Not set up yet ── */
+  function handleVideoClick(videoId) {
+    const video = videos.find(v => v.id === videoId);
+    if (video) setPlayingVideo(video);
+  }
+
   if (!isSetup) {
     return <SetupScreen onSave={(s) => setSettings(s)} />;
   }
 
+  const displayVideos = getFilteredVideos();
+
   return (
     <>
-      <header>
-        <Logo />
-        <form className="search-box" onSubmit={handleSearch}>
-          <input
-            ref={inputRef}
-            type="text"
-            placeholder="What do you want to watch?"
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-          />
-          <button type="submit">Search</button>
-        </form>
-        <button className="settings-btn" title="Parent Settings" onClick={() => setShowPin(true)}>
-          ⚙
-        </button>
-      </header>
+      <Header
+        query={query}
+        onQueryChange={setQuery}
+        onSearch={handleSearch}
+        onTripleTap={() => setShowPin(true)}
+      />
+
+      <ChipsBar
+        topics={TOPICS}
+        activeTopic={activeTopic}
+        onSelect={handleChipSelect}
+      />
 
       <main>
-        <FilterBar settings={settings} />
-
-        {!hasSearched && !loading && (
+        {loading && (
           <div className="status-msg">
-            <span className="emoji">🎬</span>
-            Search for something fun to watch!
-            <div className="topics">
-              {SUGGESTED_TOPICS.map(t => (
-                <button key={t} className="topic-btn" onClick={() => { setQuery(t); doSearch(t); }}>
-                  {t}
-                </button>
-              ))}
-            </div>
+            <span className="emoji">{'\u23f3'}</span>Finding great videos...
           </div>
         )}
 
-        {loading && <div className="status-msg"><span className="emoji">⏳</span>Finding great videos...</div>}
-
-        {error && <div className="status-msg" style={{color:'var(--accent)'}}><span className="emoji">😕</span>{error}</div>}
-
-        {hasSearched && !loading && !error && videos.length === 0 && (
-          <div className="status-msg"><span className="emoji">🔍</span>No videos passed the filters. Try a different search!</div>
+        {error && (
+          <div className="status-msg" style={{color:'var(--block-color)'}}>
+            <span className="emoji">{'\ud83d\ude15'}</span>{error}
+          </div>
         )}
 
-        <div className="video-grid">
-          {videos.map(v => (
-            <VideoCard key={v.id} video={v} onClick={setPlayingId} />
-          ))}
-        </div>
+        {!loading && !error && videos.length === 0 && initialLoaded && (
+          <div className="status-msg">
+            <span className="emoji">{'\ud83d\udd0d'}</span>No videos found. Try a different search!
+          </div>
+        )}
+
+        {!loading && !error && displayVideos.length > 0 && isSearchView && (
+          <>
+            <div className="chips-bar" style={{padding:'0 0 16px', borderBottom:'none'}}>
+              {['all', 'short', 'recent'].map(f => (
+                <button
+                  key={f}
+                  className={'chip' + (searchFilter === f ? ' active' : '')}
+                  onClick={() => setSearchFilter(f)}
+                >
+                  {f === 'all' ? 'All' : f === 'short' ? 'Short (< 4 min)' : 'Recently uploaded'}
+                </button>
+              ))}
+            </div>
+            <div className="search-results">
+              {displayVideos.map(v => (
+                <SearchResult key={v.id} video={v} onClick={handleVideoClick} />
+              ))}
+            </div>
+          </>
+        )}
+
+        {!loading && !error && displayVideos.length > 0 && !isSearchView && (
+          <div className="video-grid">
+            {displayVideos.map(v => (
+              <VideoCard key={v.id} video={v} onClick={handleVideoClick} />
+            ))}
+          </div>
+        )}
       </main>
 
-      {playingId && <PlayerOverlay videoId={playingId} onClose={() => setPlayingId(null)} />}
+      {playingVideo && (
+        <PlayerOverlay video={playingVideo} onClose={() => setPlayingVideo(null)} />
+      )}
 
       {showPin && !showSettings && (
         <PinPrompt
@@ -933,6 +1565,12 @@ function App() {
 }
 
 ReactDOM.createRoot(document.getElementById('app')).render(<App />);
+</script>
+
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/service-worker.js').catch(() => {});
+}
 </script>
 
 </body>
