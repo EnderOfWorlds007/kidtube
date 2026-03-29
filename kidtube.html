@@ -6,8 +6,8 @@
 <meta name="theme-color" content="#0f0f0f" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black" />
-<link rel="apple-touch-icon" href="/icons/icon-192.png" />
-<link rel="manifest" href="/manifest.json" />
+<link rel="apple-touch-icon" href="./icons/icon-192.png" />
+<link rel="manifest" href="./manifest.json" />
 <title>YouTube</title>
 <style>
   :root {
@@ -2144,7 +2144,7 @@ ReactDOM.createRoot(document.getElementById('app')).render(<App />);
 
 <script>
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/service-worker.js').catch(() => {});
+  navigator.serviceWorker.register('./service-worker.js').catch(() => {});
 }
 </script>
 

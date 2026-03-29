@@ -1,7 +1,8 @@
-const CACHE_NAME = 'kidtube-v1';
+const CACHE_NAME = 'kidtube-v2';
+// Use relative paths so it works on both root and subdirectory deployments
 const CRITICAL_ASSETS = [
-  '/kidtube.html',
-  '/manifest.json',
+  'kidtube.html',
+  'manifest.json',
 ];
 const CDN_ASSETS = [
   'https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js',
