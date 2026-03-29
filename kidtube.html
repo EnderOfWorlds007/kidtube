@@ -738,13 +738,13 @@ function ytApiUrl(path, params) {
 const DEFAULT_SETTINGS = {
   apiKey: '',
   parentPin: '1234',
-  maxDuration: 10,
+  maxDuration: 15,
   blockedKeywords: '',
   blockedChannels: '',
   allowedChannels: '',
   safeSearch: 'strict',
-  languages: [],
-  videosPerApproval: 1,  // how many videos before parent PIN required (0 = unlimited)
+  languages: ['fr'],
+  videosPerApproval: 1,
 };
 
 const TOPICS_BY_LANG = {
