@@ -745,6 +745,7 @@ const DEFAULT_SETTINGS = {
   safeSearch: 'strict',
   languages: ['fr'],
   videosPerApproval: 1,
+  useRssHomeFeed: true,  // Use RSS feeds for home (saves API quota)
 };
 
 const TOPICS_BY_LANG = {
@@ -757,6 +758,134 @@ const TOPICS_BY_LANG = {
 function getTopics(settings) {
   const lang = (settings.languages || [])[0] || 'en';
   return TOPICS_BY_LANG[lang] || TOPICS_BY_LANG.en;
+}
+
+/* ─── Curated channels for RSS home feed (channelId → topic index) ─── */
+const CURATED_CHANNELS = {
+  fr: {
+    // Dinosaures
+    'UCmDhcWmKdDaHkV5_8NaJfMQ': 0, // C'est pas sorcier
+    'UC9ROEOusftkTYPASZS3-cFw': 0, // Il était une fois la vie
+    // Espace
+    'UCddiUEpeqJcYeBxX1IVBKvQ': 1, // Stardust - La Chaîne Espace
+    'UCtqICqGbPSbTN09K1_7VZ3Q': 1, // Hugo Lisoir
+    // Lego
+    'UC-4G49konaVc4Zxc_AhMYOg': 2, // LEGO (official)
+    // Animaux
+    'UCaSvGKS3mhNQ_Gp1HlONedQ': 3, // Zeste des sciences
+    'UCH9HkBEbMNzjNAxFMdDi4fg': 3, // Nat Geo Wild France
+    // Science
+    'UCWnfDPdZn6b5a9Nk6KBIuKQ': 4, // Dr Nozman
+    'UCaNlbnghtwlsGF-KzAFThqA': 4, // ScienceEtonnante
+    // Dessin
+    'UCt7BE2Gk1ONqc2aQr77rOHQ': 5, // Dessin pour enfant
+    'UCNFEDCFh0DmKm5-9YAoLmMA': 5, // Tuto Draw
+    // Musique
+    'UCX-USfenzFkGTIYBdLhIIGQ': 6, // Comptines et Chansons
+    'UC4yBqKIkzS4aJL06WI1QXFQ': 6, // Monde des Titounis
+    // Tours de magie
+    'UCvjatVXuKIq0Bmp-M12cGLQ': 7, // Magic'Fab
+    // Nature
+    'UCUMxJDcIV1ayIjkDMQ81Ybg': 8, // Brut nature FR
+    // Dessins animés
+    'UCPAz4L7QFdIstIVKmRr-6wQ': 9, // Tiji
+    'UCzVZSMeMmOGNpTFnwGHmISQ': 9, // Mini TV
+  },
+  en: {
+    'UCWOA1ZGiwLbDQJk2xcd7XKA': 0, // National Geographic Kids
+    'UCvO6uJUVJQ6SrATfsWR5_aA': 1, // SciShow Kids
+    'UC-4G49konaVc4Zxc_AhMYOg': 2, // LEGO
+    'UCkQO3QsgTpNTsOw6ujimT5Q': 3, // Brave Wilderness
+    'UCvjJ2apGS6PmAm9X8ldBYwg': 4, // Science Max
+    'UCBpgrJijMDmurS9S6B7K-Mg': 5, // Art for Kids Hub
+    'UCPhRhYfn-MacB4wmlA7oBGg': 6, // Sesame Street
+    'UCF0pVplsI8R5kcAqgtoRqoA': 8, // BBC Earth
+    'UCluQ5yInbeAkkeCndNnUhpw': 9, // Cartoon Network
+  },
+};
+
+/* ─── RSS Feed Fetching (zero quota) ─── */
+async function fetchRssFeed(channelId) {
+  try {
+    const resp = await fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`);
+    if (!resp.ok) return [];
+    const text = await resp.text();
+    const parser = new DOMParser();
+    const xml = parser.parseFromString(text, 'text/xml');
+    const entries = xml.querySelectorAll('entry');
+    return Array.from(entries).map(entry => {
+      const videoId = entry.querySelector('videoId')?.textContent ||
+        (entry.querySelector('id')?.textContent || '').split(':').pop();
+      const title = entry.querySelector('title')?.textContent || '';
+      const published = entry.querySelector('published')?.textContent || '';
+      const channelName = entry.querySelector('author > name')?.textContent || '';
+      const mediaGroup = entry.getElementsByTagName('media:group')[0];
+      const thumbnail = mediaGroup?.getElementsByTagName('media:thumbnail')[0]?.getAttribute('url') || '';
+      const description = mediaGroup?.getElementsByTagName('media:description')[0]?.textContent || '';
+      return { videoId, title, published, channelName, thumbnail, description };
+    });
+  } catch { return []; }
+}
+
+/* ─── oEmbed metadata (zero quota) ─── */
+async function fetchOembed(videoId) {
+  try {
+    const resp = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`);
+    if (!resp.ok) return null;
+    return resp.json();
+  } catch { return null; }
+}
+
+/* ─── Convert RSS entries to video objects matching our card format ─── */
+function rssToVideoObj(rssEntry) {
+  return {
+    id: rssEntry.videoId,
+    snippet: {
+      title: rssEntry.title,
+      channelTitle: rssEntry.channelName,
+      publishedAt: rssEntry.published,
+      description: rssEntry.description,
+      thumbnails: {
+        medium: { url: rssEntry.thumbnail || `https://i.ytimg.com/vi/${rssEntry.videoId}/mqdefault.jpg` },
+        default: { url: `https://i.ytimg.com/vi/${rssEntry.videoId}/default.jpg` },
+      },
+    },
+    statistics: {},
+    durationSec: null, // RSS doesn't provide duration
+    subscriberCount: null,
+    _fromRss: true,
+  };
+}
+
+/* ─── Fetch home feed via RSS from curated channels ─── */
+async function fetchRssHomeFeed(settings) {
+  const lang = (settings.languages || [])[0] || 'en';
+  const channels = CURATED_CHANNELS[lang] || CURATED_CHANNELS.en;
+  const channelIds = Object.keys(channels);
+
+  // Fetch all channels in parallel
+  const feeds = await Promise.allSettled(
+    channelIds.map(id => fetchRssFeed(id))
+  );
+
+  const allVideos = [];
+  for (let i = 0; i < feeds.length; i++) {
+    if (feeds[i].status !== 'fulfilled') continue;
+    const topicIdx = channels[channelIds[i]];
+    for (const entry of feeds[i].value.slice(0, 5)) { // max 5 per channel
+      const video = rssToVideoObj(entry);
+      video._topicIdx = topicIdx;
+      allVideos.push(video);
+    }
+  }
+
+  // Apply text-based filters (can't filter by duration since RSS doesn't have it)
+  const filtered = runFilterPipeline(
+    allVideos.map(v => ({ ...v, durationSec: 0 })), // pass duration filter
+    { ...settings, maxDuration: 9999 } // skip duration for RSS
+  );
+
+  return freshSort(filtered);
 }
 
 /* ─── Settings persistence ─── */
@@ -1365,6 +1494,28 @@ function SettingsModal({ settings, onSave, onCancel }) {
                 <option value="none">None</option>
               </select>
             </div>
+            <div className="settings-row">
+              <div>
+                <div className="settings-label" style={{marginBottom:0}}>RSS home feed</div>
+                <div style={{fontSize:11, color:'var(--text-tertiary)'}}>Uses curated channels instead of API. Saves quota.</div>
+              </div>
+              <label style={{position:'relative', display:'inline-block', width:44, height:24, flexShrink:0}}>
+                <input type="checkbox" checked={s.useRssHomeFeed ?? true}
+                  onChange={e => upd('useRssHomeFeed', e.target.checked)}
+                  style={{opacity:0, width:0, height:0}} />
+                <span style={{
+                  position:'absolute', cursor:'pointer', inset:0, borderRadius:12,
+                  background: (s.useRssHomeFeed ?? true) ? 'var(--accent-blue)' : 'var(--surface)',
+                  transition: 'background 0.2s',
+                }}>
+                  <span style={{
+                    position:'absolute', left: (s.useRssHomeFeed ?? true) ? 22 : 2, top:2,
+                    width:20, height:20, borderRadius:'50%', background:'white',
+                    transition: 'left 0.2s',
+                  }} />
+                </span>
+              </label>
+            </div>
           </div>
         </div>
 
@@ -1907,21 +2058,30 @@ function App() {
     currentQueryRef.current = '';
     currentIsTopicRef.current = true;
 
-    const seen = new Set();
-    const collected = [];
-
-    function addNew(vids) {
-      for (const v of vids) {
-        if (!seen.has(v.id)) { seen.add(v.id); collected.push(v); }
-      }
-    }
-
     try {
+      // RSS mode: zero API quota
+      if (settings.useRssHomeFeed) {
+        const rssVideos = await fetchRssHomeFeed(settings);
+        updateLastVisit();
+        setVideos(rssVideos);
+        setLoading(false);
+        return;
+      }
+
+      // API mode: uses quota
+      const seen = new Set();
+      const collected = [];
+
+      function addNew(vids) {
+        for (const v of vids) {
+          if (!seen.has(v.id)) { seen.add(v.id); collected.push(v); }
+        }
+      }
+
       const shuffled = [...allTopics].sort(() => Math.random() - 0.5);
       const picks = shuffled.slice(0, 3);
       const recentDate = new Date(Date.now() - 30 * 86400000).toISOString();
 
-      // Round 1: recent videos from 3 topics (parallel)
       const recentResults = await Promise.allSettled(
         picks.map(topic => fetchPage(topic, '', { publishedAfter: recentDate, order: 'date', maxResults: 8 }))
       );
@@ -1929,7 +2089,6 @@ function App() {
         if (r.status === 'fulfilled') addNew(r.value.videos);
       }
 
-      // Round 2: all-time relevance if not enough (parallel)
       if (collected.length < 8) {
         const allTimeResults = await Promise.allSettled(
           picks.map(topic => fetchPage(topic, '', { maxResults: 8 }))
@@ -1957,13 +2116,34 @@ function App() {
     }
   }, [isSetup, initialLoaded, doMixedSearch]);
 
-  function handleChipSelect(topic) {
+  async function handleChipSelect(topic) {
     setActiveTopic(topic);
     setIsSearchView(false);
     setSearchFilter('all');
     if (topic === null) {
-      // "All" chip: mixed results from multiple topics
       doMixedSearch(topics);
+    } else if (settings.useRssHomeFeed) {
+      // RSS mode: filter by topic index
+      setLoading(true);
+      const topicIdx = topics.indexOf(topic);
+      const lang = (settings.languages || [])[0] || 'en';
+      const channels = CURATED_CHANNELS[lang] || CURATED_CHANNELS.en;
+      const topicChannels = Object.entries(channels)
+        .filter(([_, idx]) => idx === topicIdx)
+        .map(([id]) => id);
+      if (topicChannels.length > 0) {
+        const feeds = await Promise.allSettled(topicChannels.map(id => fetchRssFeed(id)));
+        const videos = feeds
+          .filter(r => r.status === 'fulfilled')
+          .flatMap(r => r.value.map(rssToVideoObj));
+        setVideos(freshSort(runFilterPipeline(
+          videos.map(v => ({...v, durationSec: 0})),
+          {...settings, maxDuration: 9999}
+        )));
+      } else {
+        doSearch(topic, true);
+      }
+      setLoading(false);
     } else {
       doSearch(topic, true);
     }
