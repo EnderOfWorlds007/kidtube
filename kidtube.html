@@ -730,6 +730,7 @@ const DEFAULT_SETTINGS = {
   allowedChannels: '',
   safeSearch: 'strict',
   languages: [],
+  videosPerApproval: 1,  // how many videos before parent PIN required (0 = unlimited)
 };
 
 const TOPICS_BY_LANG = {
@@ -1247,6 +1248,15 @@ function SettingsModal({ settings, onSave, onCancel }) {
                 value={s.maxDuration}
                 onChange={e => upd('maxDuration', parseInt(e.target.value) || 1)} />
             </div>
+            <div className="settings-row">
+              <div className="settings-label" style={{marginBottom:0}}>Videos per approval</div>
+              <input className="settings-input" type="number" min={0} max={50}
+                value={s.videosPerApproval ?? 1}
+                onChange={e => upd('videosPerApproval', parseInt(e.target.value) || 0)} />
+            </div>
+            <div style={{fontSize:11, color:'var(--text-tertiary)', marginTop:-6}}>
+              After this many videos, PIN required to continue. 0 = unlimited.
+            </div>
             <div>
               <div className="settings-label">Languages (ordered by priority)</div>
               <LanguageList
@@ -1514,10 +1524,13 @@ function App() {
   const [playingVideo, setPlayingVideo] = useState(null);
   const [showPin, setShowPin] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showApprovalPin, setShowApprovalPin] = useState(false);
   const [activeTopic, setActiveTopic] = useState(null);
   const [isSearchView, setIsSearchView] = useState(false);
   const [searchFilter, setSearchFilter] = useState('all');
   const [initialLoaded, setInitialLoaded] = useState(false);
+  const [watchCount, setWatchCount] = useState(0);
+  const pendingVideoRef = useRef(null);
   const [nextPageToken, setNextPageToken] = useState(null);
   const currentQueryRef = useRef('');
   const currentIsTopicRef = useRef(false);
@@ -1618,16 +1631,35 @@ function App() {
       if (e.key === 'Escape') {
         if (playingVideo) setPlayingVideo(null);
         else if (showSettings) setShowSettings(false);
+        else if (showApprovalPin) setShowApprovalPin(false);
         else if (showPin) setShowPin(false);
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [playingVideo, showSettings, showPin]);
+  }, [playingVideo, showSettings, showPin, showApprovalPin]);
 
   function handleVideoClick(videoId) {
     const video = videos.find(v => v.id === videoId);
-    if (video) setPlayingVideo(video);
+    if (!video) return;
+    const limit = settings.videosPerApproval || 0;
+    if (limit > 0 && watchCount >= limit) {
+      // Needs parent approval
+      pendingVideoRef.current = video;
+      setShowApprovalPin(true);
+    } else {
+      setPlayingVideo(video);
+      setWatchCount(prev => prev + 1);
+    }
+  }
+
+  function handleApprovalSuccess() {
+    setShowApprovalPin(false);
+    setWatchCount(1); // this play counts as 1
+    if (pendingVideoRef.current) {
+      setPlayingVideo(pendingVideoRef.current);
+      pendingVideoRef.current = null;
+    }
   }
 
   if (!isSetup) {
@@ -1712,6 +1744,14 @@ function App() {
 
       {playingVideo && (
         <PlayerOverlay video={playingVideo} onClose={() => setPlayingVideo(null)} />
+      )}
+
+      {showApprovalPin && (
+        <PinPrompt
+          correctPin={settings.parentPin}
+          onSuccess={handleApprovalSuccess}
+          onCancel={() => { setShowApprovalPin(false); pendingVideoRef.current = null; }}
+        />
       )}
 
       {showPin && !showSettings && (
