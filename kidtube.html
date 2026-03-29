@@ -817,13 +817,9 @@ const CONSTRAINT_FILTERS = [
     const maxSec = (settings.maxDuration || 10) * 60;
     return video.durationSec > maxSec ? 'block' : 'pass';
   },
-  function languageFilter(video, settings) {
-    const langs = settings.languages || [];
-    if (langs.length === 0) return 'pass';
-    const videoLang = (video.snippet.defaultLanguage || video.snippet.defaultAudioLanguage || '').toLowerCase();
-    if (!videoLang) return 'pass';
-    return langs.some(l => videoLang.startsWith(l.toLowerCase())) ? 'pass' : 'block';
-  },
+  // Language filtering is handled API-side via relevanceLanguage parameter.
+  // Client-side hard-blocking is too aggressive — most YouTube videos have
+  // inaccurate or missing language metadata, causing false rejections.
 ];
 
 function runFilterPipeline(videos, settings) {
