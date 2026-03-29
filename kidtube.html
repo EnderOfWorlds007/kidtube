@@ -678,9 +678,6 @@
 
   /* Responsive */
   @media (max-width: 1024px) {
-    .video-grid { grid-template-columns: repeat(3, 1fr); }
-  }
-  @media (max-width: 768px) {
     .video-grid { grid-template-columns: repeat(2, 1fr); }
   }
   @media (max-width: 640px) {
@@ -689,7 +686,7 @@
     .search-icon-btn { display: flex; }
     .search-result { flex-direction: column; }
     .search-result .thumb-wrap { width: 100%; }
-    .modal { padding: 20px; border-radius: var(--radius) var(--radius) 0 0; }
+    .modal { padding: 0; border-radius: 0; max-height: 100vh; height: 100vh; }
     .player-container { max-width: 100%; }
     .player-overlay { padding: 0; align-items: flex-start; }
     .player-close { position: absolute; top: 8px; right: 8px; z-index: 10; }
@@ -862,6 +859,24 @@ async function getVideoDetails(apiKey, ids) {
   const resp = await fetch(`https://www.googleapis.com/youtube/v3/videos?${params}`);
   if (!resp.ok) throw new Error(`YouTube details failed (${resp.status})`);
   return resp.json();
+}
+
+async function getChannelDetails(apiKey, channelIds) {
+  const unique = [...new Set(channelIds)];
+  if (!unique.length) return {};
+  const params = new URLSearchParams({
+    part: 'statistics',
+    id: unique.join(','),
+    key: apiKey,
+  });
+  const resp = await fetch(`https://www.googleapis.com/youtube/v3/channels?${params}`);
+  if (!resp.ok) return {};
+  const data = await resp.json();
+  const map = {};
+  for (const ch of data.items || []) {
+    map[ch.id] = ch.statistics?.subscriberCount || null;
+  }
+  return map;
 }
 
 /* ─── Components ─── */
@@ -1362,6 +1377,9 @@ function PlayerOverlay({ video, onClose }) {
               <div className="channel-avatar"></div>
               <div>
                 <div className="player-channel-name">{video.snippet.channelTitle}</div>
+                {video.subscriberCount && (
+                  <div style={{fontSize:12, color:'var(--text-secondary)'}}>{fmtViews(video.subscriberCount).replace('views','subscribers')}</div>
+                )}
               </div>
             </div>
             <div className="player-badges">
@@ -1408,9 +1426,12 @@ function App() {
       const ids = searchResp.items.map(i => i.id.videoId).filter(Boolean);
       if (!ids.length) { setVideos([]); setLoading(false); return; }
       const detailResp = await getVideoDetails(settings.apiKey, ids);
+      const channelIds = detailResp.items.map(i => i.snippet.channelId);
+      const subCounts = await getChannelDetails(settings.apiKey, channelIds);
       const enriched = detailResp.items.map(item => ({
         ...item,
         durationSec: parseDuration(item.contentDetails.duration),
+        subscriberCount: subCounts[item.snippet.channelId] || null,
       }));
       setVideos(runFilterPipeline(enriched, settings));
       if (!isTopicSearch) setIsSearchView(true);
