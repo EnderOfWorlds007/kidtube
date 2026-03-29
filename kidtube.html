@@ -676,6 +676,18 @@
   }
   .lang-item button:hover { color: var(--text-primary); }
 
+  /* Loading spinner */
+  .loading-spinner {
+    width: 36px;
+    height: 36px;
+    border: 3px solid var(--surface);
+    border-top-color: var(--text-primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
   /* Responsive */
   @media (max-width: 1024px) {
     .video-grid { grid-template-columns: repeat(3, 1fr); }
@@ -1440,12 +1452,28 @@ function PlayerOverlay({ video, onClose }) {
   );
 }
 
+/* ─── Infinite Scroll Sentinel ─── */
+function ScrollSentinel({ onVisible }) {
+  const ref = useRef();
+  useEffect(() => {
+    if (!ref.current) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) onVisible(); },
+      { rootMargin: '400px' }
+    );
+    obs.observe(ref.current);
+    return () => obs.disconnect();
+  }, [onVisible]);
+  return <div ref={ref} style={{height:1}} />;
+}
+
 /* ─── App ─── */
 function App() {
   const [settings, setSettings] = useState(loadSettings);
   const [query, setQuery] = useState('');
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
   const [playingVideo, setPlayingVideo] = useState(null);
   const [showPin, setShowPin] = useState(false);
@@ -1454,33 +1482,64 @@ function App() {
   const [isSearchView, setIsSearchView] = useState(false);
   const [searchFilter, setSearchFilter] = useState('all');
   const [initialLoaded, setInitialLoaded] = useState(false);
+  const [nextPageToken, setNextPageToken] = useState(null);
+  const currentQueryRef = useRef('');
+  const currentIsTopicRef = useRef(false);
 
   const isSetup = Boolean(settings.apiKey);
+
+  /* Fetch + enrich a page of results, returns { videos, nextPageToken } */
+  const fetchPage = useCallback(async (q, pageToken = '') => {
+    const searchResp = await searchYouTube(settings.apiKey, q, settings, pageToken);
+    if (searchResp.error) throw new Error(searchResp.error.message || 'API error');
+    const ids = (searchResp.items || []).map(i => i.id.videoId).filter(Boolean);
+    if (!ids.length) return { videos: [], nextPageToken: null };
+    const detailResp = await getVideoDetails(settings.apiKey, ids);
+    const channelIds = detailResp.items.map(i => i.snippet.channelId);
+    const subCounts = await getChannelDetails(settings.apiKey, channelIds);
+    const enriched = detailResp.items.map(item => ({
+      ...item,
+      durationSec: parseDuration(item.contentDetails.duration),
+      subscriberCount: subCounts[item.snippet.channelId] || null,
+    }));
+    return {
+      videos: runFilterPipeline(enriched, settings),
+      nextPageToken: searchResp.nextPageToken || null,
+    };
+  }, [settings]);
 
   const doSearch = useCallback(async (q, isTopicSearch = false) => {
     if (!q.trim() || !settings.apiKey) return;
     setLoading(true);
     setError('');
+    setNextPageToken(null);
+    currentQueryRef.current = q;
+    currentIsTopicRef.current = isTopicSearch;
     try {
-      const searchResp = await searchYouTube(settings.apiKey, q, settings);
-      if (searchResp.error) throw new Error(searchResp.error.message || 'API error');
-      const ids = (searchResp.items || []).map(i => i.id.videoId).filter(Boolean);
-      if (!ids.length) { setVideos([]); setLoading(false); return; }
-      const detailResp = await getVideoDetails(settings.apiKey, ids);
-      const channelIds = detailResp.items.map(i => i.snippet.channelId);
-      const subCounts = await getChannelDetails(settings.apiKey, channelIds);
-      const enriched = detailResp.items.map(item => ({
-        ...item,
-        durationSec: parseDuration(item.contentDetails.duration),
-        subscriberCount: subCounts[item.snippet.channelId] || null,
-      }));
-      setVideos(runFilterPipeline(enriched, settings));
+      const result = await fetchPage(q);
+      setVideos(result.videos);
+      setNextPageToken(result.nextPageToken);
       if (!isTopicSearch) setIsSearchView(true);
     } catch (err) {
       setError(err.message || 'Something went wrong');
     }
     setLoading(false);
-  }, [settings]);
+  }, [settings, fetchPage]);
+
+  const loadMore = useCallback(async () => {
+    if (!nextPageToken || loadingMore || loading) return;
+    setLoadingMore(true);
+    try {
+      const result = await fetchPage(currentQueryRef.current, nextPageToken);
+      setVideos(prev => {
+        const existingIds = new Set(prev.map(v => v.id));
+        const newVids = result.videos.filter(v => !existingIds.has(v.id));
+        return [...prev, ...newVids];
+      });
+      setNextPageToken(result.nextPageToken);
+    } catch {}
+    setLoadingMore(false);
+  }, [nextPageToken, loadingMore, loading, fetchPage]);
 
   useEffect(() => {
     if (isSetup && !initialLoaded) {
@@ -1600,6 +1659,16 @@ function App() {
               <VideoCard key={v.id} video={v} onClick={handleVideoClick} />
             ))}
           </div>
+        )}
+
+        {loadingMore && (
+          <div style={{textAlign:'center', padding:'24px 0'}}>
+            <div className="loading-spinner"></div>
+          </div>
+        )}
+
+        {!loading && !loadingMore && nextPageToken && displayVideos.length > 0 && (
+          <ScrollSentinel onVisible={loadMore} />
         )}
       </main>
 
