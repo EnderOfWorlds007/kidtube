@@ -1092,7 +1092,9 @@ function Header({ query, onQueryChange, onSearch, onTripleTap }) {
 }
 
 function SetupScreen({ onSave }) {
-  const [pin, setPin] = useState('1234');
+  const [pin, setPin] = useState('');
+  const [pinConfirm, setPinConfirm] = useState('');
+  const [pinError, setPinError] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [key, setKey] = useState('');
   const hasProxy = Boolean(PROXY_URL);
@@ -1102,16 +1104,30 @@ function SetupScreen({ onSave }) {
       <h2>Welcome to YouTube</h2>
       <p>Set a parent PIN to protect settings, then you're ready to go.</p>
       <label style={{display:'block', textAlign:'left', fontWeight:600, fontSize:14, marginBottom:6, color:'var(--text-secondary)'}}>
-        Parent PIN (to access settings later)
+        Choose a parent PIN
       </label>
       <input
-        type="password"
-        placeholder="4-digit PIN"
+        type="tel"
+        inputMode="numeric"
+        placeholder="Enter PIN"
         maxLength={6}
         value={pin}
-        onChange={e => setPin(e.target.value)}
-        style={{maxWidth:200, margin:'0 auto 16px', textAlign:'center', letterSpacing:6, fontSize:20}}
+        onChange={e => { setPin(e.target.value.replace(/\D/g, '')); setPinError(''); }}
+        style={{maxWidth:200, margin:'0 auto 8px', textAlign:'center', letterSpacing:6, fontSize:20, background:'var(--search-bg)', border:'1px solid var(--search-border)', borderRadius:10, padding:'12px 16px', color:'var(--text-primary)'}}
       />
+      <label style={{display:'block', textAlign:'left', fontWeight:600, fontSize:14, marginBottom:6, marginTop:8, color:'var(--text-secondary)'}}>
+        Confirm PIN
+      </label>
+      <input
+        type="tel"
+        inputMode="numeric"
+        placeholder="Confirm PIN"
+        maxLength={6}
+        value={pinConfirm}
+        onChange={e => { setPinConfirm(e.target.value.replace(/\D/g, '')); setPinError(''); }}
+        style={{maxWidth:200, margin:'0 auto 16px', textAlign:'center', letterSpacing:6, fontSize:20, background:'var(--search-bg)', border:'1px solid var(--search-border)', borderRadius:10, padding:'12px 16px', color:'var(--text-primary)'}}
+      />
+      {pinError && <div style={{color:'var(--block-color)', fontSize:13, marginBottom:12}}>{pinError}</div>}
       {!hasProxy && (
         <>
           <div className="instructions">
@@ -1150,9 +1166,11 @@ function SetupScreen({ onSave }) {
       )}
       <button
         className="btn-primary"
-        disabled={!hasProxy && !key.trim()}
+        disabled={(!hasProxy && !key.trim()) || pin.length < 4}
         onClick={() => {
-          const settings = { ...DEFAULT_SETTINGS, apiKey: key.trim(), parentPin: pin || '1234' };
+          if (pin !== pinConfirm) { setPinError('PINs do not match'); return; }
+          if (pin.length < 4) { setPinError('PIN must be at least 4 digits'); return; }
+          const settings = { ...DEFAULT_SETTINGS, apiKey: key.trim(), parentPin: pin };
           saveSettings(settings);
           onSave(settings);
         }}
@@ -1379,17 +1397,41 @@ function SettingsModal({ settings, onSave, onCancel }) {
               </div>
             </div>
             <div>
-              <div className="settings-label">Parent PIN</div>
-              <input className="settings-input" type="password" value={s.parentPin}
-                onChange={e => upd('parentPin', e.target.value)}
-                style={{maxWidth:200, letterSpacing:6}} maxLength={6} />
+              <div className="settings-label">Change Parent PIN</div>
+              <div style={{display:'flex', gap:8, alignItems:'center'}}>
+                <input className="settings-input" type="tel" inputMode="numeric"
+                  placeholder="New PIN"
+                  value={s.newPin || ''}
+                  onChange={e => upd('newPin', e.target.value.replace(/\D/g, ''))}
+                  style={{maxWidth:120, letterSpacing:6, textAlign:'center'}} maxLength={6} />
+                <input className="settings-input" type="tel" inputMode="numeric"
+                  placeholder="Confirm"
+                  value={s.newPinConfirm || ''}
+                  onChange={e => upd('newPinConfirm', e.target.value.replace(/\D/g, ''))}
+                  style={{maxWidth:120, letterSpacing:6, textAlign:'center'}} maxLength={6} />
+              </div>
+              {s.newPin && s.newPinConfirm && s.newPin !== s.newPinConfirm && (
+                <div style={{color:'var(--block-color)', fontSize:11, marginTop:4}}>PINs do not match</div>
+              )}
+              <div style={{fontSize:11, color:'var(--text-tertiary)', marginTop:4}}>
+                Leave blank to keep current PIN. Stored locally on this device only.
+              </div>
             </div>
           </div>
         </div>
 
         <div className="settings-btn-row">
           <button className="btn-cancel" onClick={onCancel}>Cancel</button>
-          <button className="btn-save" onClick={() => { saveSettings(s); onSave(s); }}>Save</button>
+          <button className="btn-save" onClick={() => {
+            const toSave = {...s};
+            // Apply new PIN if set and matching
+            if (toSave.newPin && toSave.newPin.length >= 4 && toSave.newPin === toSave.newPinConfirm) {
+              toSave.parentPin = toSave.newPin;
+            }
+            delete toSave.newPin;
+            delete toSave.newPinConfirm;
+            saveSettings(toSave); onSave(toSave);
+          }}>Save</button>
         </div>
       </div>
     </div>
