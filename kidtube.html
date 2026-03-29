@@ -1753,6 +1753,45 @@ function App() {
     };
   }, [settings]);
 
+  /* Time-window cascade for any single query */
+  const cascadeSearch = useCallback(async (q) => {
+    const TARGET = 12;
+    const seen = new Set();
+    const collected = [];
+    const lastVisit = getLastVisit();
+
+    const windows = [
+      lastVisit,
+      lastVisit - 7 * 86400000,
+      lastVisit - 14 * 86400000,
+      lastVisit - 30 * 86400000,
+      lastVisit - 90 * 86400000,
+      null,
+    ];
+
+    for (const windowStart of windows) {
+      if (collected.length >= TARGET) break;
+      const publishedAfter = windowStart ? new Date(windowStart).toISOString() : null;
+      const opts = publishedAfter ? { publishedAfter, order: 'date', maxResults: 12 } : { maxResults: 24 };
+      try {
+        const searchResp = await searchYouTube(settings.apiKey, q, settings, '', opts);
+        if (searchResp.error || !searchResp.items?.length) continue;
+        const ids = searchResp.items.map(i => i.id.videoId).filter(Boolean);
+        if (!ids.length) continue;
+        const detailResp = await getVideoDetails(settings.apiKey, ids);
+        const enriched = (detailResp.items || []).map(item => ({
+          ...item,
+          durationSec: parseDuration(item.contentDetails.duration),
+          subscriberCount: null,
+        }));
+        for (const v of runFilterPipeline(enriched, settings)) {
+          if (!seen.has(v.id)) { seen.add(v.id); collected.push(v); }
+        }
+      } catch {}
+    }
+    return collected;
+  }, [settings]);
+
   const doSearch = useCallback(async (q, isTopicSearch = false) => {
     if (!q.trim() || !settings.apiKey) return;
     setLoading(true);
@@ -1761,17 +1800,9 @@ function App() {
     currentQueryRef.current = q;
     currentIsTopicRef.current = isTopicSearch;
     try {
-      const result = await fetchPage(q);
-      let vids = result.videos;
-
-      // If topic search returned nothing, try a broader version of the query
-      if (vids.length === 0 && isTopicSearch) {
-        const broader = await fetchPage(q.split(' ')[0]); // try just the first word
-        vids = broader.videos;
-      }
-
+      const vids = await cascadeSearch(q);
       setVideos(freshSort(vids));
-      setNextPageToken(result.nextPageToken);
+      setNextPageToken(null); // cascade fetches multiple pages already
       if (!isTopicSearch) setIsSearchView(true);
     } catch (err) {
       setError(err.message || 'Something went wrong');
