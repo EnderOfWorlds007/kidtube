@@ -1752,7 +1752,15 @@ function App() {
     currentIsTopicRef.current = isTopicSearch;
     try {
       const result = await fetchPage(q);
-      setVideos(result.videos);
+      let vids = result.videos;
+
+      // If topic search returned nothing, try a broader version of the query
+      if (vids.length === 0 && isTopicSearch) {
+        const broader = await fetchPage(q.split(' ')[0]); // try just the first word
+        vids = broader.videos;
+      }
+
+      setVideos(freshSort(vids));
       setNextPageToken(result.nextPageToken);
       if (!isTopicSearch) setIsSearchView(true);
     } catch (err) {
@@ -1777,6 +1785,26 @@ function App() {
   }, [nextPageToken, loadingMore, loading, fetchPage]);
 
   /* Mixed search: grab a few videos from several topics, shuffle together */
+  /* Fetch videos for a list of topics, filter, dedupe, shuffle */
+  const fetchMixed = useCallback(async (topicList) => {
+    const results = await Promise.allSettled(topicList.map(async (topic) => {
+      const searchResp = await searchYouTube(settings.apiKey, topic, {...settings}, '');
+      if (searchResp.error || !searchResp.items?.length) return [];
+      const ids = searchResp.items.slice(0, 8).map(i => i.id.videoId).filter(Boolean);
+      if (!ids.length) return [];
+      const detailResp = await getVideoDetails(settings.apiKey, ids);
+      return (detailResp.items || []).map(item => ({
+        ...item,
+        durationSec: parseDuration(item.contentDetails.duration),
+        subscriberCount: null,
+      }));
+    }));
+    const allVideos = results.filter(r => r.status === 'fulfilled').flatMap(r => r.value);
+    const filtered = runFilterPipeline(allVideos, settings);
+    const seen = new Set();
+    return freshSort(filtered.filter(v => { if (seen.has(v.id)) return false; seen.add(v.id); return true; }));
+  }, [settings]);
+
   const doMixedSearch = useCallback(async (allTopics) => {
     setLoading(true);
     setError('');
@@ -1785,29 +1813,29 @@ function App() {
     currentQueryRef.current = '';
     currentIsTopicRef.current = true;
     try {
-      // Pick 4-5 random topics
+      // Round 1: pick 5 random topics
       const shuffled = [...allTopics].sort(() => Math.random() - 0.5);
-      const picks = shuffled.slice(0, Math.min(5, shuffled.length));
-      // Fetch 6 videos per topic in parallel (uses 1 search + 1 details call each)
-      const results = await Promise.all(picks.map(async (topic) => {
-        const searchResp = await searchYouTube(settings.apiKey, topic, {...settings}, '');
-        if (searchResp.error || !searchResp.items?.length) return [];
-        const ids = searchResp.items.slice(0, 6).map(i => i.id.videoId).filter(Boolean);
-        if (!ids.length) return [];
-        const detailResp = await getVideoDetails(settings.apiKey, ids);
-        return (detailResp.items || []).map(item => ({
-          ...item,
-          durationSec: parseDuration(item.contentDetails.duration),
-          subscriberCount: null,
-        }));
-      }));
-      const allVideos = results.flat();
-      const filtered = runFilterPipeline(allVideos, settings);
-      // Deduplicate and shuffle
-      const seen = new Set();
-      const unique = filtered.filter(v => { if (seen.has(v.id)) return false; seen.add(v.id); return true; });
-      const mixed = unique.sort(() => Math.random() - 0.5);
-      setVideos(mixed);
+      let videos = await fetchMixed(shuffled.slice(0, 5));
+
+      // Round 2: if too few results, try the remaining topics
+      if (videos.length < 4 && shuffled.length > 5) {
+        const more = await fetchMixed(shuffled.slice(5));
+        const existingIds = new Set(videos.map(v => v.id));
+        videos = [...videos, ...more.filter(v => !existingIds.has(v.id))];
+      }
+
+      // Round 3: last resort — broad search without topic specificity
+      if (videos.length < 2) {
+        const fallbackQueries = [
+          FOR_KIDS_TRANSLATIONS[(settings.languages || [])[0] || 'en'] || 'for kids',
+          'cartoon', 'fun', 'play',
+        ];
+        const fallback = await fetchMixed(fallbackQueries);
+        const existingIds = new Set(videos.map(v => v.id));
+        videos = [...videos, ...fallback.filter(v => !existingIds.has(v.id))];
+      }
+
+      setVideos(videos);
     } catch (err) {
       setError(err.message || 'Something went wrong');
     }
