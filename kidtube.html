@@ -735,7 +735,9 @@ function ytApiUrl(path, params) {
 }
 
 /* ─── Constants ─── */
+const SETTINGS_VERSION = 2; // bump to push default changes to existing users
 const DEFAULT_SETTINGS = {
+  _v: SETTINGS_VERSION,
   apiKey: '',
   parentPin: '1234',
   maxDuration: 15,
@@ -745,7 +747,7 @@ const DEFAULT_SETTINGS = {
   safeSearch: 'strict',
   languages: ['fr'],
   videosPerApproval: 1,
-  useRssHomeFeed: true,  // Use RSS feeds for home (saves API quota)
+  useRssHomeFeed: true,
 };
 
 const TOPICS_BY_LANG = {
@@ -895,7 +897,20 @@ async function fetchRssHomeFeed(settings) {
 function loadSettings() {
   try {
     const raw = localStorage.getItem('kidtube_settings');
-    return raw ? { ...DEFAULT_SETTINGS, ...JSON.parse(raw) } : { ...DEFAULT_SETTINGS };
+    if (!raw) return { ...DEFAULT_SETTINGS };
+    const saved = JSON.parse(raw);
+    // If settings are from an older version, apply new defaults for fields
+    // that haven't been explicitly customized
+    if ((saved._v || 0) < SETTINGS_VERSION) {
+      const upgraded = { ...DEFAULT_SETTINGS, ...saved, _v: SETTINGS_VERSION };
+      // Push specific default changes: language and duration
+      if (!saved.languages || saved.languages.length === 0) upgraded.languages = DEFAULT_SETTINGS.languages;
+      if (!saved.maxDuration || saved.maxDuration === 10) upgraded.maxDuration = DEFAULT_SETTINGS.maxDuration;
+      if (saved.useRssHomeFeed === undefined) upgraded.useRssHomeFeed = DEFAULT_SETTINGS.useRssHomeFeed;
+      saveSettings(upgraded);
+      return upgraded;
+    }
+    return { ...DEFAULT_SETTINGS, ...saved };
   } catch { return { ...DEFAULT_SETTINGS }; }
 }
 function saveSettings(s) {
