@@ -1122,26 +1122,60 @@ const LANG_TO_REGION = {
 };
 
 /* ─── YouTube API ─── */
-/* ─── API result cache (sessionStorage, survives refresh, cleared on tab close) ─── */
-const API_CACHE_TTL = 60 * 60 * 1000; // 1 hour
+/* ─── API result cache (localStorage, survives refresh + tab close) ─── */
+// Fresh: serve from cache. Stale: try network, fall back to stale cache on error.
+// This means quota exhaustion is invisible — the app keeps working from cache.
+const API_CACHE_TTL = 60 * 60 * 1000; // 1 hour = fresh
+const API_CACHE_MAX = 24 * 60 * 60 * 1000; // 24 hours = max stale age before eviction
+
+function getCachedData(cacheKey) {
+  try {
+    const raw = localStorage.getItem(cacheKey);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return null;
+}
+
+function setCachedData(cacheKey, data) {
+  try {
+    localStorage.setItem(cacheKey, JSON.stringify({ data, ts: Date.now() }));
+  } catch {
+    // localStorage full — evict oldest cache entries
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k.startsWith('ktc_')) keys.push(k);
+    }
+    keys.sort().slice(0, Math.max(1, keys.length / 2)).forEach(k => localStorage.removeItem(k));
+    try { localStorage.setItem(cacheKey, JSON.stringify({ data, ts: Date.now() })); } catch {}
+  }
+}
+
 function cachedFetch(url) {
   const cacheKey = 'ktc_' + url;
-  try {
-    const cached = sessionStorage.getItem(cacheKey);
-    if (cached) {
-      const { data, ts } = JSON.parse(cached);
-      if (Date.now() - ts < API_CACHE_TTL) return Promise.resolve(new Response(JSON.stringify(data)));
-    }
-  } catch {}
+  const cached = getCachedData(cacheKey);
+
+  // Fresh cache: serve immediately
+  if (cached && (Date.now() - cached.ts < API_CACHE_TTL)) {
+    return Promise.resolve(new Response(JSON.stringify(cached.data)));
+  }
+
+  // Stale or no cache: try network
   return fetch(url).then(async resp => {
     if (resp.ok) {
-      try {
-        const data = await resp.json();
-        sessionStorage.setItem(cacheKey, JSON.stringify({ data, ts: Date.now() }));
-        return new Response(JSON.stringify(data));
-      } catch {}
+      const data = await resp.json();
+      setCachedData(cacheKey, data);
+      return new Response(JSON.stringify(data));
+    }
+    // Network error (403 quota, etc.) — serve stale cache if available
+    if (cached && (Date.now() - cached.ts < API_CACHE_MAX)) {
+      return new Response(JSON.stringify(cached.data));
     }
     return resp;
+  }).catch(() => {
+    // Total network failure — serve stale cache
+    if (cached) return new Response(JSON.stringify(cached.data));
+    throw new Error('No network and no cached results');
   });
 }
 
