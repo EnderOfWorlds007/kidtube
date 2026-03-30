@@ -744,6 +744,7 @@ const DEFAULT_SETTINGS = {
   apiKey: '',
   parentPin: '1234',
   minDuration: 5,
+  minViews: 10000,
   maxDuration: 15,
   blockedKeywords: '',
   blockedChannels: '',
@@ -999,7 +1000,10 @@ function freshSort(videos) {
   const taste = getTasteProfile();
   const favoriteChannels = new Set(taste.topChannels);
 
-  // Score each video
+  // Normalize view counts to 0-1 range for scoring
+  const views = videos.map(v => parseInt(v.statistics?.viewCount) || 0);
+  const maxViews = Math.max(...views, 1);
+
   const scored = videos.map(v => {
     let score = 0;
     const wasWatched = !!history[v.id];
@@ -1007,8 +1011,11 @@ function freshSort(videos) {
     if (!wasWatched) score += 1000;
     // Videos from favorite channels get a boost
     if (favoriteChannels.has(v.snippet?.channelTitle)) score += 200;
+    // View count signal: popular videos score higher (0-150 range)
+    const viewCount = parseInt(v.statistics?.viewCount) || 0;
+    score += (viewCount / maxViews) * 150;
     // Add randomness so results feel fresh
-    score += Math.random() * 100;
+    score += Math.random() * 80;
     return { video: v, score, wasWatched };
   });
 
@@ -1111,9 +1118,13 @@ const CONSTRAINT_FILTERS = [
     if (dur > maxSec) return 'block';
     return 'pass';
   },
-  // Language filtering is handled API-side via relevanceLanguage parameter.
-  // Client-side hard-blocking is too aggressive — most YouTube videos have
-  // inaccurate or missing language metadata, causing false rejections.
+  function minViewsFilter(video, settings) {
+    const minViews = settings.minViews || 0;
+    if (minViews <= 0) return 'pass';
+    const views = parseInt(video.statistics?.viewCount) || 0;
+    if (views <= 0) return 'pass'; // no view data (RSS), let it through
+    return views >= minViews ? 'pass' : 'block';
+  },
 ];
 
 function runFilterPipeline(videos, settings) {
@@ -1666,6 +1677,15 @@ function SettingsModal({ settings, onSave, onCancel }) {
               <input className="settings-input" type="number" min={1} max={120}
                 value={s.maxDuration}
                 onChange={e => upd('maxDuration', parseInt(e.target.value) || 1)} />
+            </div>
+            <div className="settings-row">
+              <div className="settings-label" style={{marginBottom:0}}>Min Views</div>
+              <input className="settings-input" type="number" min={0} max={10000000}
+                value={s.minViews ?? 10000}
+                onChange={e => upd('minViews', parseInt(e.target.value) || 0)} />
+            </div>
+            <div style={{fontSize:11, color:'var(--text-tertiary)', marginTop:-6}}>
+              Hide videos with fewer views. 0 = no minimum.
             </div>
             <div className="settings-row">
               <div className="settings-label" style={{marginBottom:0}}>Videos per approval</div>
