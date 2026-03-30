@@ -738,11 +738,12 @@ function ytApiUrl(path, params) {
 }
 
 /* ─── Constants ─── */
-const SETTINGS_VERSION = 2; // bump to push default changes to existing users
+const SETTINGS_VERSION = 3; // bump to push default changes to existing users
 const DEFAULT_SETTINGS = {
   _v: SETTINGS_VERSION,
   apiKey: '',
   parentPin: '1234',
+  minDuration: 5,
   maxDuration: 15,
   blockedKeywords: '',
   blockedChannels: '',
@@ -935,6 +936,7 @@ function loadSettings() {
       const upgraded = { ...DEFAULT_SETTINGS, ...saved, _v: SETTINGS_VERSION, _needsPinReset: true };
       if (!saved.languages || saved.languages.length === 0) upgraded.languages = DEFAULT_SETTINGS.languages;
       if (!saved.maxDuration || saved.maxDuration === 10) upgraded.maxDuration = DEFAULT_SETTINGS.maxDuration;
+      if (saved.minDuration === undefined) upgraded.minDuration = DEFAULT_SETTINGS.minDuration;
       if (saved.useRssHomeFeed === undefined) upgraded.useRssHomeFeed = DEFAULT_SETTINGS.useRssHomeFeed;
       saveSettings(upgraded);
       return upgraded;
@@ -1100,9 +1102,14 @@ const BLOCK_FILTERS = [
 ];
 
 const CONSTRAINT_FILTERS = [
-  function maxDuration(video, settings) {
-    const maxSec = (settings.maxDuration || 10) * 60;
-    return video.durationSec > maxSec ? 'block' : 'pass';
+  function durationFilter(video, settings) {
+    const dur = video.durationSec;
+    if (!dur || dur <= 0) return 'pass'; // no duration info, let it through
+    const minSec = (settings.minDuration || 0) * 60;
+    const maxSec = (settings.maxDuration || 15) * 60;
+    if (dur < minSec) return 'block';
+    if (dur > maxSec) return 'block';
+    return 'pass';
   },
   // Language filtering is handled API-side via relevanceLanguage parameter.
   // Client-side hard-blocking is too aggressive — most YouTube videos have
@@ -1648,6 +1655,12 @@ function SettingsModal({ settings, onSave, onCancel }) {
             <div className="settings-tier-hint">(must pass all)</div>
           </div>
           <div className="settings-tier-body">
+            <div className="settings-row">
+              <div className="settings-label" style={{marginBottom:0}}>Min Duration (min)</div>
+              <input className="settings-input" type="number" min={0} max={60}
+                value={s.minDuration ?? 5}
+                onChange={e => upd('minDuration', parseInt(e.target.value) || 0)} />
+            </div>
             <div className="settings-row">
               <div className="settings-label" style={{marginBottom:0}}>Max Duration (min)</div>
               <input className="settings-input" type="number" min={1} max={120}
