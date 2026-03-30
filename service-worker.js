@@ -1,4 +1,4 @@
-const CACHE_NAME = 'kidtube-v2';
+const CACHE_NAME = 'kidtube-v3';
 // Use relative paths so it works on both root and subdirectory deployments
 const CRITICAL_ASSETS = [
   'kidtube.html',

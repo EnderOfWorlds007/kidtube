@@ -720,6 +720,9 @@
 <script type="text/babel">
 const { useState, useEffect, useRef, useCallback } = React;
 
+/* ─── Version ─── */
+const APP_VERSION = '__BUILD_TIME__';
+
 /* ─── API Base URL ─── */
 // If a proxy URL is configured, API calls go through it (key stays server-side).
 // Otherwise, calls go direct to Google (key stored in localStorage).
@@ -1819,7 +1822,6 @@ function SettingsModal({ settings, onSave, onCancel }) {
           <button className="btn-cancel" onClick={onCancel}>Cancel</button>
           <button className="btn-save" onClick={() => {
             const toSave = {...s};
-            // Apply new PIN if set and matching
             if (toSave.newPin && toSave.newPin.length >= 4 && toSave.newPin === toSave.newPinConfirm) {
               toSave.parentPin = toSave.newPin;
             }
@@ -1827,6 +1829,9 @@ function SettingsModal({ settings, onSave, onCancel }) {
             delete toSave.newPinConfirm;
             saveSettings(toSave); onSave(toSave);
           }}>Save</button>
+        </div>
+        <div style={{textAlign:'center', marginTop:16, fontSize:11, color:'var(--text-tertiary)'}}>
+          Build: {APP_VERSION}
         </div>
       </div>
     </div>
