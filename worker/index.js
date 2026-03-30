@@ -1,11 +1,22 @@
 // Cloudflare Worker: YouTube API + RSS proxy
-// Keeps the API key server-side and adds CORS to RSS feeds.
+// Rotates through multiple API keys. On 403, tries the next key.
 
 const ALLOWED_API_PATHS = [
   '/youtube/v3/search',
   '/youtube/v3/videos',
   '/youtube/v3/channels',
 ];
+
+// Keys are stored as YOUTUBE_API_KEY, YOUTUBE_API_KEY_2, YOUTUBE_API_KEY_3, etc.
+function getApiKeys(env) {
+  const keys = [];
+  if (env.YOUTUBE_API_KEY) keys.push(env.YOUTUBE_API_KEY);
+  for (let i = 2; i <= 10; i++) {
+    const k = env[`YOUTUBE_API_KEY_${i}`];
+    if (k) keys.push(k);
+  }
+  return keys;
+}
 
 export default {
   async fetch(request, env) {
@@ -23,14 +34,13 @@ export default {
         return jsonResponse({ error: 'Invalid channel_id' }, 400, request);
       }
       try {
-        const rssUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`;
-        const rssResp = await fetch(rssUrl);
+        const rssResp = await fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`);
         const data = await rssResp.text();
         return new Response(data, {
           status: rssResp.status,
           headers: {
             'Content-Type': 'application/xml',
-            'Cache-Control': 'public, max-age=900', // cache 15 min
+            'Cache-Control': 'public, max-age=900',
             ...corsHeaders(request),
           },
         });
@@ -39,30 +49,59 @@ export default {
       }
     }
 
-    // YouTube Data API proxy
+    // YouTube Data API proxy with key rotation
     if (!ALLOWED_API_PATHS.includes(path)) {
       return jsonResponse({ error: 'Not found' }, 404, request);
     }
 
-    const ytUrl = new URL('https://www.googleapis.com' + path);
-    for (const [k, v] of url.searchParams) {
-      if (k !== 'key') ytUrl.searchParams.set(k, v);
+    const keys = getApiKeys(env);
+    if (!keys.length) {
+      return jsonResponse({ error: 'No API keys configured' }, 500, request);
     }
-    ytUrl.searchParams.set('key', env.YOUTUBE_API_KEY);
 
-    try {
-      const ytResp = await fetch(ytUrl.toString());
-      const data = await ytResp.text();
-      return new Response(data, {
-        status: ytResp.status,
-        headers: {
-          'Content-Type': 'application/json',
-          ...corsHeaders(request),
-        },
-      });
-    } catch (err) {
-      return jsonResponse({ error: 'Proxy error: ' + err.message }, 502, request);
+    // Start from a random key to spread load evenly
+    const startIdx = Math.floor(Math.random() * keys.length);
+    let lastResp;
+
+    for (let i = 0; i < keys.length; i++) {
+      const keyIdx = (startIdx + i) % keys.length;
+      const ytUrl = new URL('https://www.googleapis.com' + path);
+      for (const [k, v] of url.searchParams) {
+        if (k !== 'key') ytUrl.searchParams.set(k, v);
+      }
+      ytUrl.searchParams.set('key', keys[keyIdx]);
+
+      try {
+        const ytResp = await fetch(ytUrl.toString());
+        // If not a quota error, return immediately
+        if (ytResp.status !== 403) {
+          const data = await ytResp.text();
+          return new Response(data, {
+            status: ytResp.status,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders(request),
+            },
+          });
+        }
+        // 403 — might be quota. Check if it's actually quota before rotating.
+        const body = await ytResp.text();
+        if (body.includes('quotaExceeded')) {
+          lastResp = new Response(body, { status: 403, headers: { 'Content-Type': 'application/json', ...corsHeaders(request) } });
+          continue; // try next key
+        }
+        // 403 but not quota (e.g. forbidden video) — return as-is
+        return new Response(body, {
+          status: 403,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders(request) },
+        });
+      } catch (err) {
+        lastResp = jsonResponse({ error: 'Proxy error: ' + err.message }, 502, request);
+      }
     }
+
+    // All keys exhausted
+    return lastResp || jsonResponse({ error: 'All API keys exhausted' }, 403, request);
   },
 };
 
