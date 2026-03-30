@@ -749,10 +749,10 @@ const DEFAULT_SETTINGS = {
 };
 
 const TOPICS_BY_LANG = {
-  en: ['Dinosaurs', 'Space', 'Lego', 'Animals', 'Science', 'Drawing', 'Music', 'Magic Tricks', 'Nature', 'Cartoons'],
-  fr: ['Dinosaures', 'Espace', 'Lego', 'Animaux', 'Science', 'Dessin', 'Musique', 'Tours de magie', 'Nature', 'Dessins animés'],
-  es: ['Dinosaurios', 'Espacio', 'Lego', 'Animales', 'Ciencia', 'Dibujo', 'Música', 'Trucos de magia', 'Naturaleza', 'Dibujos animados'],
-  de: ['Dinosaurier', 'Weltraum', 'Lego', 'Tiere', 'Wissenschaft', 'Zeichnen', 'Musik', 'Zaubertricks', 'Natur', 'Zeichentrick'],
+  en: ['Minecraft', 'Lego', 'Cartoons', 'Animals', 'Science', 'Drawing', 'Music', 'Sports', 'Baking', 'Nature'],
+  fr: ['Minecraft', 'Lego', 'Dessins animés', 'Animaux', 'Science', 'Dessin', 'Musique', 'Ping Pong', 'Pâtisserie', 'Tennis'],
+  es: ['Minecraft', 'Lego', 'Dibujos animados', 'Animales', 'Ciencia', 'Dibujo', 'Música', 'Deportes', 'Repostería', 'Naturaleza'],
+  de: ['Minecraft', 'Lego', 'Zeichentrick', 'Tiere', 'Wissenschaft', 'Zeichnen', 'Musik', 'Sport', 'Backen', 'Natur'],
 };
 
 function getTopics(settings) {
@@ -761,53 +761,56 @@ function getTopics(settings) {
 }
 
 /* ─── Curated channels for RSS home feed (channelId → topic index) ─── */
+// Topic indices match TOPICS_BY_LANG: 0=Minecraft, 1=Lego, 2=Dessins animés,
+// 3=Animaux, 4=Science, 5=Dessin, 6=Musique, 7=Ping Pong, 8=Pâtisserie, 9=Tennis
+// All channel IDs verified with working RSS feeds.
 const CURATED_CHANNELS = {
   fr: {
-    // Dinosaures
-    'UCmDhcWmKdDaHkV5_8NaJfMQ': 0, // C'est pas sorcier
-    'UC9ROEOusftkTYPASZS3-cFw': 0, // Il était une fois la vie
-    // Espace
-    'UCddiUEpeqJcYeBxX1IVBKvQ': 1, // Stardust - La Chaîne Espace
-    'UCtqICqGbPSbTN09K1_7VZ3Q': 1, // Hugo Lisoir
-    // Lego
-    'UC-4G49konaVc4Zxc_AhMYOg': 2, // LEGO (official)
-    // Animaux
-    'UCaSvGKS3mhNQ_Gp1HlONedQ': 3, // Zeste des sciences
-    'UCH9HkBEbMNzjNAxFMdDi4fg': 3, // Nat Geo Wild France
-    // Science
-    'UCWnfDPdZn6b5a9Nk6KBIuKQ': 4, // Dr Nozman
-    'UCaNlbnghtwlsGF-KzAFThqA': 4, // ScienceEtonnante
-    // Dessin
-    'UCt7BE2Gk1ONqc2aQr77rOHQ': 5, // Dessin pour enfant
-    'UCNFEDCFh0DmKm5-9YAoLmMA': 5, // Tuto Draw
-    // Musique
-    'UCX-USfenzFkGTIYBdLhIIGQ': 6, // Comptines et Chansons
-    'UC4yBqKIkzS4aJL06WI1QXFQ': 6, // Monde des Titounis
-    // Tours de magie
-    'UCvjatVXuKIq0Bmp-M12cGLQ': 7, // Magic'Fab
-    // Nature
-    'UCUMxJDcIV1ayIjkDMQ81Ybg': 8, // Brut nature FR
-    // Dessins animés
-    'UCPAz4L7QFdIstIVKmRr-6wQ': 9, // Tiji
-    'UCzVZSMeMmOGNpTFnwGHmISQ': 9, // Mini TV
+    // Minecraft (0) — no dedicated FR channel found, will fall back to API search
+    // Lego (1)
+    'UC1gOOzaT_nWDUURe6tjtsHA': 1, // Mr. Bricks en Français
+    'UCwIejFZVc_QPBMMOIm5ObaQ': 1, // Lego Cooking
+    'UCW6BEk2-Ve8SPl9NlVXqz6Q': 1, // MADABOUTLEGO
+    'UClsFdM0HzTdF1JYoraQ0aUw': 1, // Brick Experiment Channel
+    // Dessins animés (2)
+    'UCo9j7fWproKYTos4_RY-LUw': 2, // Simon Super Lapin FR
+    'UCwztOpzEE8X3xjD7CYFQyXg': 2, // Boxoffice KIDS
+    'UC0pHdbHRCREJJQhGSUDH61g': 2, // Pocoyo FR
+    'UCStiWhNWjHELyavdV4KhZYQ': 2, // 100% KIDZ
+    'UCGfy_srryuYyqRJH7G2pk8w': 2, // Katuri FR
+    // Animaux (3) — fall back to API
+    // Science (4) — fall back to API
+    // Dessin (5)
+    'UC-Wd0imt57-uOge-U_92RvQ': 5, // Dessin pour enfant
+    'UCC9MeiPgQLO1dglEFwLFqdA': 5, // Dessin Facile Pour Les Enfants
+    // Musique (6)
+    'UCq6jhYDQ2HBvEPIev8NDglw': 6, // Comptines et chansons
+    'UC8I-UIlXPNS4luC4iV7dRdQ': 6, // Titounis
+    'UCl0KdGiwyqLJCdu5XMIz_TQ': 6, // HeyKids FR
+    // Ping Pong (7)
+    'UCk_u9bKoX-S_JFh2iA1_xug': 7, // Le Ping pong expliqué
+    'UChd-Cig5emrmCMYzFA9pTXw': 7, // The PingPong Video
+    'UCcILXXthGExGeKAQLAIUaFQ': 7, // Pongfinity
+    // Pâtisserie (8) — fall back to API
+    // Tennis (9) — fall back to API
   },
   en: {
-    'UCWOA1ZGiwLbDQJk2xcd7XKA': 0, // National Geographic Kids
-    'UCvO6uJUVJQ6SrATfsWR5_aA': 1, // SciShow Kids
-    'UC-4G49konaVc4Zxc_AhMYOg': 2, // LEGO
-    'UCkQO3QsgTpNTsOw6ujimT5Q': 3, // Brave Wilderness
-    'UCvjJ2apGS6PmAm9X8ldBYwg': 4, // Science Max
-    'UCBpgrJijMDmurS9S6B7K-Mg': 5, // Art for Kids Hub
-    'UCPhRhYfn-MacB4wmlA7oBGg': 6, // Sesame Street
-    'UCF0pVplsI8R5kcAqgtoRqoA': 8, // BBC Earth
-    'UCluQ5yInbeAkkeCndNnUhpw': 9, // Cartoon Network
+    'UClsFdM0HzTdF1JYoraQ0aUw': 1, // Brick Experiment Channel
+    'UCwIejFZVc_QPBMMOIm5ObaQ': 1, // Lego Cooking
+    'UCo9j7fWproKYTos4_RY-LUw': 2, // Simon Super Lapin
+    'UCwztOpzEE8X3xjD7CYFQyXg': 2, // Boxoffice KIDS
+    'UC-Wd0imt57-uOge-U_92RvQ': 5, // Dessin pour enfant
+    'UCcILXXthGExGeKAQLAIUaFQ': 7, // Pongfinity
   },
 };
 
-/* ─── RSS Feed Fetching (zero quota) ─── */
+/* ─── RSS Feed Fetching (zero quota, proxied for CORS) ─── */
 async function fetchRssFeed(channelId) {
   try {
-    const resp = await fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`);
+    const rssUrl = PROXY_URL
+      ? `${PROXY_URL}/rss?channel_id=${channelId}`
+      : `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`;
+    const resp = await fetch(rssUrl);
     if (!resp.ok) return [];
     const text = await resp.text();
     const parser = new DOMParser();
@@ -2158,9 +2161,26 @@ function App() {
     currentIsTopicRef.current = true;
 
     try {
-      // RSS mode: zero API quota
+      // RSS mode: zero API quota, with API backfill if too few results
       if (settings.useRssHomeFeed) {
         const rssVideos = await fetchRssHomeFeed(settings);
+        if (rssVideos.length >= 4) {
+          updateLastVisit();
+          setVideos(rssVideos);
+          setLoading(false);
+          return;
+        }
+        // Too few RSS results — backfill with a single API search
+        try {
+          const backfill = await fetchPage(allTopics[Math.floor(Math.random() * allTopics.length)]);
+          const seen = new Set(rssVideos.map(v => v.id));
+          const combined = [...rssVideos, ...backfill.videos.filter(v => !seen.has(v.id))];
+          updateLastVisit();
+          setVideos(freshSort(combined));
+          setLoading(false);
+          return;
+        } catch {}
+        // Even backfill failed — show what RSS got
         updateLastVisit();
         setVideos(rssVideos);
         setLoading(false);

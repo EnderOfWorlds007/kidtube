@@ -1,7 +1,7 @@
-// Cloudflare Worker: YouTube API proxy
-// Keeps the API key server-side — the browser never sees it.
+// Cloudflare Worker: YouTube API + RSS proxy
+// Keeps the API key server-side and adds CORS to RSS feeds.
 
-const ALLOWED_PATHS = [
+const ALLOWED_API_PATHS = [
   '/youtube/v3/search',
   '/youtube/v3/videos',
   '/youtube/v3/channels',
@@ -9,24 +9,42 @@ const ALLOWED_PATHS = [
 
 export default {
   async fetch(request, env) {
-    // CORS preflight
     if (request.method === 'OPTIONS') {
-      return new Response(null, {
-        headers: corsHeaders(request),
-      });
+      return new Response(null, { headers: corsHeaders(request) });
     }
 
     const url = new URL(request.url);
     const path = url.pathname;
 
-    // Only proxy allowed YouTube API paths
-    if (!ALLOWED_PATHS.includes(path)) {
+    // RSS feed proxy: /rss?channel_id=XXX
+    if (path === '/rss') {
+      const channelId = url.searchParams.get('channel_id');
+      if (!channelId || !/^UC[\w-]{22}$/.test(channelId)) {
+        return jsonResponse({ error: 'Invalid channel_id' }, 400, request);
+      }
+      try {
+        const rssUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`;
+        const rssResp = await fetch(rssUrl);
+        const data = await rssResp.text();
+        return new Response(data, {
+          status: rssResp.status,
+          headers: {
+            'Content-Type': 'application/xml',
+            'Cache-Control': 'public, max-age=900', // cache 15 min
+            ...corsHeaders(request),
+          },
+        });
+      } catch (err) {
+        return jsonResponse({ error: 'RSS fetch failed: ' + err.message }, 502, request);
+      }
+    }
+
+    // YouTube Data API proxy
+    if (!ALLOWED_API_PATHS.includes(path)) {
       return jsonResponse({ error: 'Not found' }, 404, request);
     }
 
-    // Build YouTube API URL with the secret key
     const ytUrl = new URL('https://www.googleapis.com' + path);
-    // Forward all query params except 'key' (we inject our own)
     for (const [k, v] of url.searchParams) {
       if (k !== 'key') ytUrl.searchParams.set(k, v);
     }
