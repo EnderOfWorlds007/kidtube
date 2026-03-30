@@ -72,7 +72,9 @@ export default {
       ytUrl.searchParams.set('key', keys[keyIdx]);
 
       try {
-        const ytResp = await fetch(ytUrl.toString());
+        const ytResp = await fetch(ytUrl.toString(), {
+          headers: { 'Referer': 'https://kidtube-api.enderofworlds007.workers.dev/' },
+        });
         // If not a quota error, return immediately
         if (ytResp.status !== 403) {
           const data = await ytResp.text();
