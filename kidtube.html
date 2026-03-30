@@ -863,12 +863,40 @@ function rssToVideoObj(rssEntry) {
 }
 
 /* ─── Fetch home feed via RSS from curated channels ─── */
+/* Enrich RSS videos with duration from videos.list API (1 call per 50 videos = ~2 units) */
+async function enrichRssWithDuration(videos, apiKey) {
+  const ids = videos.map(v => v.id).filter(Boolean);
+  if (!ids.length) return videos;
+  // Batch in groups of 50
+  const durationMap = {};
+  for (let i = 0; i < ids.length; i += 50) {
+    const batch = ids.slice(i, i + 50);
+    const params = new URLSearchParams({
+      part: 'contentDetails',
+      id: batch.join(','),
+      ...(apiKey ? { key: apiKey } : {}),
+    });
+    try {
+      const resp = await cachedFetch(ytApiUrl('/youtube/v3/videos', params));
+      if (resp.ok) {
+        const data = await resp.json();
+        for (const item of (data.items || [])) {
+          durationMap[item.id] = parseDuration(item.contentDetails.duration);
+        }
+      }
+    } catch {}
+  }
+  return videos.map(v => ({
+    ...v,
+    durationSec: durationMap[v.id] ?? v.durationSec,
+  }));
+}
+
 async function fetchRssHomeFeed(settings) {
   const lang = (settings.languages || [])[0] || 'en';
   const channels = CURATED_CHANNELS[lang] || CURATED_CHANNELS.en;
   const channelIds = Object.keys(channels);
 
-  // Fetch all channels in parallel
   const feeds = await Promise.allSettled(
     channelIds.map(id => fetchRssFeed(id))
   );
@@ -877,19 +905,18 @@ async function fetchRssHomeFeed(settings) {
   for (let i = 0; i < feeds.length; i++) {
     if (feeds[i].status !== 'fulfilled') continue;
     const topicIdx = channels[channelIds[i]];
-    for (const entry of feeds[i].value.slice(0, 5)) { // max 5 per channel
+    for (const entry of feeds[i].value.slice(0, 5)) {
       const video = rssToVideoObj(entry);
       video._topicIdx = topicIdx;
       allVideos.push(video);
     }
   }
 
-  // Apply text-based filters (can't filter by duration since RSS doesn't have it)
-  const filtered = runFilterPipeline(
-    allVideos.map(v => ({ ...v, durationSec: 0 })), // pass duration filter
-    { ...settings, maxDuration: 9999 } // skip duration for RSS
-  );
+  // Enrich with real durations (cheap: 1 API call per 50 videos, cached)
+  const enriched = await enrichRssWithDuration(allVideos, settings.apiKey);
 
+  // Now apply full filter pipeline including duration
+  const filtered = runFilterPipeline(enriched, settings);
   return freshSort(filtered);
 }
 
@@ -1820,7 +1847,7 @@ function VideoCard({ video, onClick }) {
           src={video.snippet.thumbnails.medium?.url || video.snippet.thumbnails.default?.url}
           alt={video.snippet.title}
           loading="lazy" />
-        {video.durationSec != null && (
+        {video.durationSec > 0 && (
           <div className="duration-badge">{fmtDuration(video.durationSec)}</div>
         )}
         <WatchedBar videoId={video.id} />
@@ -1849,7 +1876,7 @@ function SearchResult({ video, onClick }) {
           src={video.snippet.thumbnails.medium?.url || video.snippet.thumbnails.default?.url}
           alt={video.snippet.title}
           loading="lazy" />
-        {video.durationSec != null && (
+        {video.durationSec > 0 && (
           <div className="duration-badge">{fmtDuration(video.durationSec)}</div>
         )}
         <WatchedBar videoId={video.id} />
@@ -2121,6 +2148,22 @@ function PlayerOverlay({ video, onClose }) {
                   <span style={{color:'white', fontSize:12, fontFamily:'monospace', marginLeft:'auto'}}>
                     {fmtDuration(Math.floor(progress))} / {fmtDuration(Math.floor(duration))}
                   </span>
+                  <button onClick={(e) => {
+                    e.stopPropagation();
+                    const el = document.querySelector('.player-body');
+                    if (el) {
+                      if (document.fullscreenElement || document.webkitFullscreenElement) {
+                        (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+                      } else {
+                        (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+                      }
+                    }
+                  }}
+                    style={{background:'none', border:'none', cursor:'pointer', padding:4, display:'flex', marginLeft:8}}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
+                      <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
+                    </svg>
+                  </button>
                 </div>
               </div>
             </div>
@@ -2375,13 +2418,11 @@ function App() {
         .map(([id]) => id);
       if (topicChannels.length > 0) {
         const feeds = await Promise.allSettled(topicChannels.map(id => fetchRssFeed(id)));
-        const videos = feeds
+        let videos = feeds
           .filter(r => r.status === 'fulfilled')
           .flatMap(r => r.value.map(rssToVideoObj));
-        setVideos(freshSort(runFilterPipeline(
-          videos.map(v => ({...v, durationSec: 0})),
-          {...settings, maxDuration: 9999}
-        )));
+        videos = await enrichRssWithDuration(videos, settings.apiKey);
+        setVideos(freshSort(runFilterPipeline(videos, settings)));
       } else {
         doSearch(topic, true);
       }
