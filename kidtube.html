@@ -1122,6 +1122,29 @@ const LANG_TO_REGION = {
 };
 
 /* ─── YouTube API ─── */
+/* ─── API result cache (sessionStorage, survives refresh, cleared on tab close) ─── */
+const API_CACHE_TTL = 60 * 60 * 1000; // 1 hour
+function cachedFetch(url) {
+  const cacheKey = 'ktc_' + url;
+  try {
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) {
+      const { data, ts } = JSON.parse(cached);
+      if (Date.now() - ts < API_CACHE_TTL) return Promise.resolve(new Response(JSON.stringify(data)));
+    }
+  } catch {}
+  return fetch(url).then(async resp => {
+    if (resp.ok) {
+      try {
+        const data = await resp.json();
+        sessionStorage.setItem(cacheKey, JSON.stringify({ data, ts: Date.now() }));
+        return new Response(JSON.stringify(data));
+      } catch {}
+    }
+    return resp;
+  });
+}
+
 async function searchYouTube(apiKey, query, settings, pageToken = '', opts = {}) {
   const maxMin = settings.maxDuration || 10;
   let videoDuration;
@@ -1148,8 +1171,11 @@ async function searchYouTube(apiKey, query, settings, pageToken = '', opts = {})
   const region = LANG_TO_REGION[primaryLang];
   if (region) params.set('regionCode', region);
 
-  const resp = await fetch(ytApiUrl('/youtube/v3/search', params));
-  if (!resp.ok) throw new Error(`YouTube search failed (${resp.status})`);
+  const resp = await cachedFetch(ytApiUrl('/youtube/v3/search', params));
+  if (!resp.ok) {
+    if (resp.status === 403) throw new Error('QUOTA_EXCEEDED');
+    throw new Error(`YouTube search failed (${resp.status})`);
+  }
   return resp.json();
 }
 
@@ -1159,7 +1185,7 @@ async function getVideoDetails(apiKey, ids) {
     id: ids.join(','),
     key: apiKey,
   });
-  const resp = await fetch(ytApiUrl('/youtube/v3/videos', params));
+  const resp = await cachedFetch(ytApiUrl('/youtube/v3/videos', params));
   if (!resp.ok) throw new Error(`YouTube details failed (${resp.status})`);
   return resp.json();
 }
@@ -1172,7 +1198,7 @@ async function getChannelDetails(apiKey, channelIds) {
     id: unique.join(','),
     key: apiKey,
   });
-  const resp = await fetch(ytApiUrl('/youtube/v3/channels', params));
+  const resp = await cachedFetch(ytApiUrl('/youtube/v3/channels', params));
   if (!resp.ok) return {};
   const data = await resp.json();
   const map = {};
@@ -2431,7 +2457,14 @@ function App() {
 
         {error && (
           <div className="status-msg" style={{color:'var(--block-color)'}}>
-            <span className="emoji">{'\ud83d\ude15'}</span>{error}
+            {error === 'QUOTA_EXCEEDED' ? (
+              <>
+                <span className="emoji">{'\u23f0'}</span>
+                Too many searches today! Try again tomorrow morning.
+              </>
+            ) : (
+              <><span className="emoji">{'\ud83d\ude15'}</span>{error}</>
+            )}
           </div>
         )}
 
