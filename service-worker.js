@@ -1,9 +1,4 @@
-const CACHE_NAME = 'kidtube-v3';
-// Use relative paths so it works on both root and subdirectory deployments
-const CRITICAL_ASSETS = [
-  'kidtube.html',
-  'manifest.json',
-];
+const CACHE_NAME = 'kidtube-v4';
 const CDN_ASSETS = [
   'https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js',
@@ -13,8 +8,6 @@ const CDN_ASSETS = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(async (cache) => {
-      await cache.addAll(CRITICAL_ASSETS);
-      // Cache CDN assets opportunistically — don't block install if they fail
       for (const url of CDN_ASSETS) {
         try { await cache.add(url); } catch {}
       }
@@ -35,15 +28,27 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // Network-first for YouTube API calls
-  if (url.hostname === 'www.googleapis.com') {
+  // Network-first for YouTube API / Worker proxy
+  if (url.hostname === 'www.googleapis.com' || url.hostname.includes('workers.dev')) {
     event.respondWith(
       fetch(event.request).catch(() => caches.match(event.request))
     );
     return;
   }
 
-  // Cache-first for everything else
+  // Network-first for HTML (always get latest version)
+  if (event.request.mode === 'navigate' || url.pathname.endsWith('.html')) {
+    event.respondWith(
+      fetch(event.request).then((resp) => {
+        const clone = resp.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+        return resp;
+      }).catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // Cache-first for CDN assets (they never change)
   event.respondWith(
     caches.match(event.request).then((cached) => cached || fetch(event.request))
   );
