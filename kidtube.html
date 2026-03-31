@@ -780,25 +780,25 @@ function getTopics(settings) {
 }
 
 /* ─── Curated channels for RSS home feed (channelId → topic index) ─── */
-// Topic indices match TOPICS_BY_LANG: 0=Minecraft, 1=Lego, 2=Dessins animés,
-// 3=Animaux, 4=Science, 5=Dessin, 6=Musique, 7=Ping Pong, 8=Pâtisserie, 9=Tennis
-// All channel IDs verified with working RSS feeds.
+// Topic indices: 0=Minecraft, 1=Lego, 2=Dessins animés, 3=Animaux,
+// 4=Science, 5=Dessin, 6=Musique, 7=Ping Pong, 8=Pâtisserie, 9=Tennis
+// All IDs verified via RSS. Focused on kid-friendly content.
 const CURATED_CHANNELS = {
   fr: {
-    // Minecraft (0) — no dedicated FR channel found, will fall back to API search
-    // Lego (1)
+    // Minecraft (0) — falls back to API search (no dedicated FR kid channel)
+    // Lego (1) — kid-friendly builders
     'UC1gOOzaT_nWDUURe6tjtsHA': 1, // Mr. Bricks en Français
     'UCwIejFZVc_QPBMMOIm5ObaQ': 1, // Lego Cooking
-    'UCW6BEk2-Ve8SPl9NlVXqz6Q': 1, // MADABOUTLEGO
-    'UClsFdM0HzTdF1JYoraQ0aUw': 1, // Brick Experiment Channel
-    // Dessins animés (2)
+    // Dessins animés (2) — main content for kids
     'UCo9j7fWproKYTos4_RY-LUw': 2, // Simon Super Lapin FR
     'UCwztOpzEE8X3xjD7CYFQyXg': 2, // Boxoffice KIDS
     'UC0pHdbHRCREJJQhGSUDH61g': 2, // Pocoyo FR
     'UCStiWhNWjHELyavdV4KhZYQ': 2, // 100% KIDZ
     'UCGfy_srryuYyqRJH7G2pk8w': 2, // Katuri FR
-    // Animaux (3) — fall back to API
-    // Science (4) — fall back to API
+    'UCh6z0qEeTxrrgCq1F1_Qo-g': 2, // Ollie et Moon FR
+    'UC-dhlhy4F_Z3op1ZO2e2B_A': 2, // Sherlock Yack
+    // Animaux (3) — falls back to API
+    // Science (4) — falls back to API
     // Dessin (5)
     'UC-Wd0imt57-uOge-U_92RvQ': 5, // Dessin pour enfant
     'UCC9MeiPgQLO1dglEFwLFqdA': 5, // Dessin Facile Pour Les Enfants
@@ -807,17 +807,20 @@ const CURATED_CHANNELS = {
     'UC8I-UIlXPNS4luC4iV7dRdQ': 6, // Titounis
     'UCl0KdGiwyqLJCdu5XMIz_TQ': 6, // HeyKids FR
     // Ping Pong (7)
-    'UCk_u9bKoX-S_JFh2iA1_xug': 7, // Le Ping pong expliqué
+    'UCk_u9bKoX-S_JFh2iA1_xug': 7, // Le Ping pong expliqué par un enfant
     'UChd-Cig5emrmCMYzFA9pTXw': 7, // The PingPong Video
     'UCcILXXthGExGeKAQLAIUaFQ': 7, // Pongfinity
-    // Pâtisserie (8) — fall back to API
-    // Tennis (9) — fall back to API
+    'UCoea5XH9lH8FNWqhDO0LyMw': 7, // Ping-Pong Mode
+    // Pâtisserie (8) — falls back to API
+    // Tennis (9)
+    'UCbSp14_-VM20JHopCTJjvhQ': 9, // Les Petits As
+    'UCsFYe0sBwA0VQu7yUMXkabA': 9, // TennisMamia
+    'UCALDTd5ti2M6Pi3g8W_OUNQ': 9, // Tennis avec Mathieu
   },
   en: {
-    'UClsFdM0HzTdF1JYoraQ0aUw': 1, // Brick Experiment Channel
-    'UCwIejFZVc_QPBMMOIm5ObaQ': 1, // Lego Cooking
     'UCo9j7fWproKYTos4_RY-LUw': 2, // Simon Super Lapin
     'UCwztOpzEE8X3xjD7CYFQyXg': 2, // Boxoffice KIDS
+    'UC0pHdbHRCREJJQhGSUDH61g': 2, // Pocoyo
     'UC-Wd0imt57-uOge-U_92RvQ': 5, // Dessin pour enfant
     'UCcILXXthGExGeKAQLAIUaFQ': 7, // Pongfinity
   },
@@ -1338,7 +1341,7 @@ function YTLogo({ onTripleTap }) {
   );
 }
 
-function Header({ query, onQueryChange, onSearch, onTripleTap }) {
+function Header({ query, onQueryChange, onSearch, onTripleTap, onMicClick, listening }) {
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const mobileInputRef = useRef();
 
@@ -1370,7 +1373,9 @@ function Header({ query, onQueryChange, onSearch, onTripleTap }) {
             <button className="search-btn" type="submit">
               <svg width="20" height="20" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
             </button>
-            <button className="mic-btn" type="button" tabIndex={-1}>
+            <button className="mic-btn" type="button" tabIndex={-1}
+              style={{background: listening ? 'var(--accent-red)' : 'var(--elevated)'}}
+              onClick={(e) => { e.preventDefault(); onMicClick(); }}>
               <svg width="20" height="20" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1-9c0-.55.45-1 1-1s1 .45 1 1v6c0 .55-.45 1-1 1s-1-.45-1-1V5z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
             </button>
           </form>
@@ -2575,6 +2580,36 @@ function App() {
     }
   }
 
+  /* Voice search via Web Speech API */
+  const [listening, setListening] = useState(false);
+  const recognitionRef = useRef(null);
+
+  function handleMicClick() {
+    if (listening) {
+      if (recognitionRef.current) recognitionRef.current.stop();
+      setListening(false);
+      return;
+    }
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) return; // not supported
+    const rec = new SpeechRecognition();
+    const lang = (settings.languages || [])[0] || 'en';
+    rec.lang = lang === 'fr' ? 'fr-FR' : lang === 'es' ? 'es-ES' : lang === 'de' ? 'de-DE' : 'en-US';
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
+    rec.onresult = (e) => {
+      const text = e.results[0][0].transcript;
+      setQuery(text);
+      setActiveTopic(null);
+      doSearch(text, false);
+    };
+    rec.onend = () => setListening(false);
+    rec.onerror = () => setListening(false);
+    recognitionRef.current = rec;
+    rec.start();
+    setListening(true);
+  }
+
   function getFilteredVideos() {
     if (searchFilter === 'short') return videos.filter(v => v.durationSec <= 240);
     if (searchFilter === 'recent') {
@@ -2666,6 +2701,8 @@ function App() {
         onQueryChange={setQuery}
         onSearch={handleSearch}
         onTripleTap={() => setShowPin(true)}
+        onMicClick={handleMicClick}
+        listening={listening}
       />
 
       <ChipsBar
@@ -2700,30 +2737,22 @@ function App() {
           </div>
         )}
 
-        {!loading && !error && displayVideos.length > 0 && isSearchView && (
+        {!loading && !error && displayVideos.length > 0 && (
           <>
-            <div className="chips-bar" style={{padding:'0 0 16px', borderBottom:'none'}}>
-              {['all', 'short', 'recent'].map(f => (
-                <button
-                  key={f}
-                  className={'chip' + (searchFilter === f ? ' active' : '')}
-                  onClick={() => setSearchFilter(f)}
-                >
-                  {f === 'all' ? 'All' : f === 'short' ? 'Short (< 4 min)' : 'Recently uploaded'}
-                </button>
-              ))}
-            </div>
-            <div className="search-results">
-              {displayVideos.map(v => (
-                <SearchResult key={v.id} video={v} onClick={handleVideoClick} />
-              ))}
-            </div>
-          </>
-        )}
-
-        {!loading && !error && displayVideos.length > 0 && !isSearchView && (
-          <>
-            <WatchAgainRow onVideoClick={handleVideoClick} />
+            {isSearchView && (
+              <div className="chips-bar" style={{padding:'0 0 16px', borderBottom:'none'}}>
+                {['all', 'short', 'recent'].map(f => (
+                  <button
+                    key={f}
+                    className={'chip' + (searchFilter === f ? ' active' : '')}
+                    onClick={() => setSearchFilter(f)}
+                  >
+                    {f === 'all' ? 'All' : f === 'short' ? 'Short (< 4 min)' : 'Recently uploaded'}
+                  </button>
+                ))}
+              </div>
+            )}
+            {!isSearchView && <WatchAgainRow onVideoClick={handleVideoClick} />}
             <div className="video-grid">
               {displayVideos.map(v => (
                 <VideoCard key={v.id} video={v} onClick={handleVideoClick} />
