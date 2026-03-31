@@ -763,7 +763,7 @@ const DEFAULT_SETTINGS = {
   allowedChannels: '',
   safeSearch: 'strict',
   languages: ['fr'],
-  videosPerApproval: 1,
+  videosPerApproval: 3,
   useRssHomeFeed: true,
 };
 
@@ -1980,6 +1980,61 @@ function SearchResult({ video, onClick }) {
   );
 }
 
+function WatchAgainRow({ onVideoClick }) {
+  const [recentVideos, setRecentVideos] = useState([]);
+
+  useEffect(() => {
+    // Load recent watches from history, fetch their thumbnails
+    const h = getWatchHistory();
+    const recent = Object.entries(h)
+      .sort((a, b) => b[1].t - a[1].t)
+      .slice(0, 10)
+      .map(([id, meta]) => ({
+        id,
+        snippet: {
+          title: meta.q || 'Watched video',
+          channelTitle: meta.ch || '',
+          thumbnails: {
+            medium: { url: `https://i.ytimg.com/vi/${id}/mqdefault.jpg` },
+          },
+        },
+        statistics: {},
+        durationSec: null,
+      }));
+    setRecentVideos(recent);
+  }, []);
+
+  if (recentVideos.length === 0) return null;
+
+  return (
+    <div style={{marginBottom: 24}}>
+      <div style={{fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 12}}>
+        Watch again
+      </div>
+      <div style={{
+        display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 8,
+        scrollbarWidth: 'none', msOverflowStyle: 'none',
+      }}>
+        {recentVideos.map(v => (
+          <div key={v.id} onClick={() => onVideoClick(v.id)}
+            style={{flexShrink: 0, width: 180, cursor: 'pointer'}}>
+            <div style={{position: 'relative', borderRadius: 'var(--radius)', overflow: 'hidden'}}>
+              <img src={v.snippet.thumbnails.medium.url}
+                style={{width: '100%', aspectRatio: '16/9', objectFit: 'cover', display: 'block', background: 'var(--surface)'}}
+                loading="lazy" />
+              <div style={{position:'absolute', bottom:0, left:0, right:0, height:3, background:'#ff0000'}} />
+            </div>
+            <div style={{marginTop: 6, fontSize: 12, color: 'var(--text-primary)', lineHeight: 1.3,
+              display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden'}}>
+              {v.snippet.channelTitle || v.id}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ChipsBar({ topics, activeTopic, onSelect }) {
   return (
     <div className="chips-bar">
@@ -2553,8 +2608,23 @@ function App() {
   }
 
   function handleVideoClick(videoId) {
-    const video = videos.find(v => v.id === videoId);
-    if (!video) return;
+    let video = videos.find(v => v.id === videoId);
+    // If not in current results (e.g. from Watch Again), create a minimal video object
+    if (!video) {
+      const h = getWatchHistory();
+      const meta = h[videoId];
+      video = {
+        id: videoId,
+        snippet: {
+          title: meta?.ch || 'Video',
+          channelTitle: meta?.ch || '',
+          publishedAt: meta?.t ? new Date(meta.t).toISOString() : '',
+          thumbnails: { medium: { url: `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg` } },
+        },
+        statistics: {},
+        durationSec: null,
+      };
+    }
     const limit = settings.videosPerApproval || 0;
     if (limit > 0 && watchCount >= limit) {
       pendingVideoRef.current = video;
@@ -2652,11 +2722,14 @@ function App() {
         )}
 
         {!loading && !error && displayVideos.length > 0 && !isSearchView && (
-          <div className="video-grid">
-            {displayVideos.map(v => (
-              <VideoCard key={v.id} video={v} onClick={handleVideoClick} />
-            ))}
-          </div>
+          <>
+            <WatchAgainRow onVideoClick={handleVideoClick} />
+            <div className="video-grid">
+              {displayVideos.map(v => (
+                <VideoCard key={v.id} video={v} onClick={handleVideoClick} />
+              ))}
+            </div>
+          </>
         )}
 
         {loadingMore && (
