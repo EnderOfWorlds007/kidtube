@@ -765,6 +765,10 @@ const DEFAULT_SETTINGS = {
   languages: ['fr'],
   videosPerApproval: 3,
   useRssHomeFeed: true,
+  mathEnabled: true,
+  mathTables: [2,3,4,5,6,7,8,9,10],  // which tables to practice
+  mathQuestionsPerRound: 3,           // questions to earn one video
+  mathMinutesPerCorrect: 2,           // minutes earned per correct answer
 };
 
 const TOPICS_BY_LANG = {
@@ -1046,6 +1050,68 @@ function freshSort(videos) {
 
   scored.sort((a, b) => b.score - a.score);
   return scored.map(s => s.video);
+}
+
+/* ─── Math engine (adaptive multiplication practice) ─── */
+function getMathStats() {
+  try { return JSON.parse(localStorage.getItem('kidtube_math') || '{}'); } catch { return {}; }
+}
+function saveMathStats(stats) {
+  localStorage.setItem('kidtube_math', JSON.stringify(stats));
+}
+
+// Generate a question, weighted toward tables the kid struggles with
+function generateMathQuestion(tables) {
+  const stats = getMathStats();
+  // Build weighted pool: tables with more wrong answers appear more often
+  const pool = [];
+  for (const t of tables) {
+    for (let m = 1; m <= 10; m++) {
+      const key = `${t}x${m}`;
+      const s = stats[key] || { right: 0, wrong: 0 };
+      // Weight: more wrong = more likely to appear. Min weight 1.
+      const weight = 1 + (s.wrong * 3) - s.right;
+      const w = Math.max(1, weight);
+      for (let i = 0; i < w; i++) pool.push({ a: t, b: m });
+    }
+  }
+  const pick = pool[Math.floor(Math.random() * pool.length)];
+  // Randomly swap a,b so kid sees both "3x7" and "7x3"
+  return Math.random() > 0.5 ? { a: pick.a, b: pick.b } : { a: pick.b, b: pick.a };
+}
+
+function recordMathAnswer(a, b, correct) {
+  const stats = getMathStats();
+  // Store under normalized key (smaller number first)
+  const key = `${Math.min(a,b)}x${Math.max(a,b)}`;
+  if (!stats[key]) stats[key] = { right: 0, wrong: 0 };
+  if (correct) stats[key].right++;
+  else stats[key].wrong++;
+  saveMathStats(stats);
+}
+
+// Get earned time remaining (minutes)
+function getEarnedTime() {
+  try {
+    const data = JSON.parse(localStorage.getItem('kidtube_earnedtime') || '{}');
+    if (!data.until) return 0;
+    const remaining = (data.until - Date.now()) / 60000;
+    return Math.max(0, remaining);
+  } catch { return 0; }
+}
+
+function addEarnedTime(minutes) {
+  try {
+    const data = JSON.parse(localStorage.getItem('kidtube_earnedtime') || '{}');
+    const now = Date.now();
+    const currentUntil = data.until && data.until > now ? data.until : now;
+    data.until = currentUntil + minutes * 60000;
+    localStorage.setItem('kidtube_earnedtime', JSON.stringify(data));
+  } catch {}
+}
+
+function hasEarnedTime() {
+  return getEarnedTime() > 0;
 }
 
 /* ─── Last visit tracking ─── */
@@ -1764,6 +1830,73 @@ function SettingsModal({ settings, onSave, onCancel }) {
           </div>
         </div>
 
+        {/* Learning */}
+        <div className="settings-tier">
+          <div className="settings-tier-header">
+            <div className="settings-tier-dot" style={{background:'#f6ad55'}}></div>
+            <div className="settings-tier-title" style={{color:'#f6ad55'}}>Learning</div>
+            <div className="settings-tier-hint">(earn video time with math)</div>
+          </div>
+          <div className="settings-tier-body">
+            <div className="settings-row">
+              <div>
+                <div className="settings-label" style={{marginBottom:0}}>Math challenges</div>
+                <div style={{fontSize:11, color:'var(--text-tertiary)'}}>Kid solves multiplication to earn video time</div>
+              </div>
+              <label style={{position:'relative', display:'inline-block', width:44, height:24, flexShrink:0}}>
+                <input type="checkbox" checked={s.mathEnabled ?? true}
+                  onChange={e => upd('mathEnabled', e.target.checked)}
+                  style={{opacity:0, width:0, height:0}} />
+                <span style={{
+                  position:'absolute', cursor:'pointer', inset:0, borderRadius:12,
+                  background: (s.mathEnabled ?? true) ? '#f6ad55' : 'var(--surface)',
+                  transition: 'background 0.2s',
+                }}>
+                  <span style={{
+                    position:'absolute', left: (s.mathEnabled ?? true) ? 22 : 2, top:2,
+                    width:20, height:20, borderRadius:'50%', background:'white',
+                    transition: 'left 0.2s',
+                  }} />
+                </span>
+              </label>
+            </div>
+            {(s.mathEnabled ?? true) && (<>
+              <div>
+                <div className="settings-label">Multiplication tables</div>
+                <div style={{display:'flex', flexWrap:'wrap', gap:6}}>
+                  {[2,3,4,5,6,7,8,9,10,11,12].map(n => {
+                    const active = (s.mathTables || [2,3,4,5,6,7,8,9,10]).includes(n);
+                    return (
+                      <button key={n} onClick={() => {
+                        const cur = s.mathTables || [2,3,4,5,6,7,8,9,10];
+                        upd('mathTables', active ? cur.filter(x => x !== n) : [...cur, n].sort((a,b) => a-b));
+                      }}
+                        style={{
+                          width:36, height:36, borderRadius:8, border:'none', cursor:'pointer',
+                          background: active ? '#f6ad55' : 'var(--surface)',
+                          color: active ? 'var(--bg)' : 'var(--text-secondary)',
+                          fontWeight:600, fontSize:14, fontFamily:'inherit',
+                        }}>{n}</button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="settings-row">
+                <div className="settings-label" style={{marginBottom:0}}>Questions per round</div>
+                <input className="settings-input" type="number" min={1} max={10}
+                  value={s.mathQuestionsPerRound ?? 3}
+                  onChange={e => upd('mathQuestionsPerRound', parseInt(e.target.value) || 3)} />
+              </div>
+              <div className="settings-row">
+                <div className="settings-label" style={{marginBottom:0}}>Minutes per correct answer</div>
+                <input className="settings-input" type="number" min={1} max={15}
+                  value={s.mathMinutesPerCorrect ?? 2}
+                  onChange={e => upd('mathMinutesPerCorrect', parseInt(e.target.value) || 2)} />
+              </div>
+            </>)}
+          </div>
+        </div>
+
         <div className="settings-tier">
           <div className="settings-tier-header">
             <div className="settings-tier-dot" style={{background:'var(--text-tertiary)'}}></div>
@@ -1981,6 +2114,171 @@ function SearchResult({ video, onClick }) {
           <div className="search-result-desc">{video.snippet.description}</div>
         )}
       </div>
+    </div>
+  );
+}
+
+function MathChallenge({ settings, onComplete }) {
+  const tables = settings.mathTables || [2,3,4,5];
+  const total = settings.mathQuestionsPerRound || 3;
+  const minsPerCorrect = settings.mathMinutesPerCorrect || 2;
+
+  const [questionIdx, setQuestionIdx] = useState(0);
+  const [question, setQuestion] = useState(() => generateMathQuestion(tables));
+  const [answer, setAnswer] = useState('');
+  const [feedback, setFeedback] = useState(null); // 'correct' | 'wrong' | null
+  const [correctCount, setCorrectCount] = useState(0);
+  const [streak, setStreak] = useState(0);
+  const inputRef = useRef();
+
+  useEffect(() => {
+    if (inputRef.current) inputRef.current.focus();
+  }, [questionIdx]);
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    const correct = parseInt(answer) === question.a * question.b;
+    recordMathAnswer(question.a, question.b, correct);
+
+    if (correct) {
+      setFeedback('correct');
+      setCorrectCount(prev => prev + 1);
+      setStreak(prev => prev + 1);
+    } else {
+      setFeedback('wrong');
+      setStreak(0);
+    }
+
+    setTimeout(() => {
+      setFeedback(null);
+      setAnswer('');
+      if (questionIdx + 1 >= total) {
+        // Round complete
+        const earned = (correct ? correctCount + 1 : correctCount) * minsPerCorrect;
+        // Streak bonus: 3+ correct in a row = extra minute
+        const bonus = (correct && streak + 1 >= 3) ? 2 : 0;
+        addEarnedTime(earned + bonus);
+        onComplete(earned + bonus);
+      } else {
+        setQuestionIdx(prev => prev + 1);
+        setQuestion(generateMathQuestion(tables));
+      }
+    }, correct ? 800 : 2000);
+  }
+
+  const progress = ((questionIdx) / total) * 100;
+
+  return (
+    <div style={{
+      position:'fixed', inset:0, background:'var(--bg)', zIndex:400,
+      display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+      padding:20,
+    }}>
+      {/* Progress bar */}
+      <div style={{position:'absolute', top:0, left:0, right:0, height:4, background:'var(--surface)'}}>
+        <div style={{width:`${progress}%`, height:'100%', background:'var(--accent-blue)', transition:'width 0.3s'}} />
+      </div>
+
+      {/* Stars for correct count */}
+      <div style={{display:'flex', gap:8, marginBottom:24}}>
+        {Array.from({length: total}, (_, i) => (
+          <div key={i} style={{
+            fontSize:28,
+            opacity: i < correctCount ? 1 : 0.2,
+            transform: i < correctCount ? 'scale(1.1)' : 'scale(1)',
+            transition: 'all 0.3s',
+          }}>
+            {'\u2b50'}
+          </div>
+        ))}
+      </div>
+
+      {/* Question */}
+      <div style={{fontSize:48, fontWeight:700, color:'var(--text-primary)', marginBottom:8}}>
+        {question.a} × {question.b}
+      </div>
+      <div style={{fontSize:14, color:'var(--text-tertiary)', marginBottom:24}}>
+        Question {questionIdx + 1} of {total}
+      </div>
+
+      {/* Answer input */}
+      <form onSubmit={handleSubmit} style={{display:'flex', gap:12, alignItems:'center'}}>
+        <input
+          ref={inputRef}
+          type="tel"
+          inputMode="numeric"
+          value={answer}
+          onChange={e => setAnswer(e.target.value.replace(/\D/g, ''))}
+          placeholder="?"
+          autoFocus
+          style={{
+            width:120, height:60, textAlign:'center', fontSize:32, fontWeight:700,
+            background: feedback === 'correct' ? '#1a3a1a' : feedback === 'wrong' ? '#3a1a1a' : 'var(--search-bg)',
+            border: feedback === 'correct' ? '2px solid var(--allow-color)' :
+                    feedback === 'wrong' ? '2px solid var(--block-color)' :
+                    '2px solid var(--search-border)',
+            borderRadius:12, color:'var(--text-primary)', outline:'none',
+            transition: 'all 0.2s',
+          }}
+          disabled={feedback !== null}
+        />
+        <button type="submit" disabled={!answer || feedback !== null}
+          style={{
+            width:60, height:60, borderRadius:12,
+            background: answer ? 'var(--accent-blue)' : 'var(--surface)',
+            border:'none', color:'var(--bg)', fontSize:24, fontWeight:700,
+            cursor: answer ? 'pointer' : 'default',
+            display:'flex', alignItems:'center', justifyContent:'center',
+          }}>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
+          </svg>
+        </button>
+      </form>
+
+      {/* Feedback */}
+      {feedback === 'wrong' && (
+        <div style={{marginTop:16, fontSize:18, color:'var(--block-color)', fontWeight:600}}>
+          {question.a} × {question.b} = {question.a * question.b}
+        </div>
+      )}
+      {feedback === 'correct' && (
+        <div style={{marginTop:16, fontSize:24}}>
+          {streak >= 3 ? '\ud83d\udd25' : '\u2705'}
+        </div>
+      )}
+
+      {/* Earned time info */}
+      <div style={{marginTop:32, fontSize:13, color:'var(--text-tertiary)', textAlign:'center'}}>
+        Each correct answer = {minsPerCorrect} min of video time
+        {streak >= 2 && <span style={{color:'var(--allow-color)'}}> | Streak: {streak}{'\ud83d\udd25'}</span>}
+      </div>
+    </div>
+  );
+}
+
+function MathCompleteScreen({ earnedMinutes, onContinue }) {
+  return (
+    <div style={{
+      position:'fixed', inset:0, background:'var(--bg)', zIndex:400,
+      display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+      padding:20, textAlign:'center',
+    }}>
+      <div style={{fontSize:64, marginBottom:16}}>{'\ud83c\udf89'}</div>
+      <div style={{fontSize:24, fontWeight:700, color:'var(--text-primary)', marginBottom:8}}>
+        Well done!
+      </div>
+      <div style={{fontSize:18, color:'var(--text-secondary)', marginBottom:24}}>
+        You earned {earnedMinutes} minutes of video time!
+      </div>
+      <button onClick={onContinue}
+        style={{
+          padding:'14px 40px', background:'var(--accent-blue)', border:'none',
+          borderRadius:'var(--radius-full)', color:'var(--bg)', fontSize:16,
+          fontWeight:600, cursor:'pointer', fontFamily:'inherit',
+        }}>
+        Watch videos
+      </button>
     </div>
   );
 }
@@ -2365,6 +2663,9 @@ function App() {
   const [showPin, setShowPin] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showApprovalPin, setShowApprovalPin] = useState(false);
+  const [showMathChallenge, setShowMathChallenge] = useState(false);
+  const [mathEarned, setMathEarned] = useState(null); // minutes just earned (for complete screen)
+  const [earnedTimeLeft, setEarnedTimeLeft] = useState(getEarnedTime);
   const [activeTopic, setActiveTopic] = useState(null);
   const [isSearchView, setIsSearchView] = useState(false);
   const [searchFilter, setSearchFilter] = useState('all');
@@ -2620,6 +2921,12 @@ function App() {
     return videos;
   }
 
+  // Update earned time display periodically
+  useEffect(() => {
+    const iv = setInterval(() => setEarnedTimeLeft(getEarnedTime()), 30000);
+    return () => clearInterval(iv);
+  }, []);
+
   useEffect(() => {
     const handler = (e) => {
       if (e.key === 'Escape') {
@@ -2660,19 +2967,54 @@ function App() {
         durationSec: null,
       };
     }
-    const limit = settings.videosPerApproval || 0;
-    if (limit > 0 && watchCount >= limit) {
-      pendingVideoRef.current = video;
-      setShowApprovalPin(true);
-    } else {
+    // First video is free (watchCount === 0)
+    if (watchCount === 0) {
       playVideo(video);
-      setWatchCount(prev => prev + 1);
+      setWatchCount(1);
+      return;
+    }
+
+    // After first video: check math earn-time or PIN approval
+    if (settings.mathEnabled) {
+      // Math mode: need earned time
+      if (hasEarnedTime()) {
+        playVideo(video);
+        setWatchCount(prev => prev + 1);
+      } else {
+        pendingVideoRef.current = video;
+        setShowMathChallenge(true);
+      }
+    } else {
+      // PIN mode (legacy)
+      const limit = settings.videosPerApproval || 0;
+      if (limit > 0 && watchCount >= limit) {
+        pendingVideoRef.current = video;
+        setShowApprovalPin(true);
+      } else {
+        playVideo(video);
+        setWatchCount(prev => prev + 1);
+      }
     }
   }
 
   function handleApprovalSuccess() {
     setShowApprovalPin(false);
-    setWatchCount(1);
+    setWatchCount(prev => prev + 1);
+    if (pendingVideoRef.current) {
+      playVideo(pendingVideoRef.current);
+      pendingVideoRef.current = null;
+    }
+  }
+
+  function handleMathComplete(earnedMinutes) {
+    setShowMathChallenge(false);
+    setMathEarned(earnedMinutes);
+    setEarnedTimeLeft(getEarnedTime());
+  }
+
+  function handleMathContinue() {
+    setMathEarned(null);
+    setWatchCount(prev => prev + 1);
     if (pendingVideoRef.current) {
       playVideo(pendingVideoRef.current);
       pendingVideoRef.current = null;
@@ -2712,6 +3054,26 @@ function App() {
       />
 
       <main>
+        {/* Earned time indicator */}
+        {settings.mathEnabled && watchCount > 0 && earnedTimeLeft > 0 && (
+          <div style={{
+            display:'flex', alignItems:'center', justifyContent:'center', gap:8,
+            padding:'8px 16px', background:'var(--elevated)', borderRadius:8,
+            marginBottom:12, fontSize:13, color:'var(--text-secondary)',
+          }}>
+            <span>{'\u23f1\ufe0f'}</span>
+            <span>{Math.ceil(earnedTimeLeft)} min remaining</span>
+            <div style={{
+              width:60, height:4, background:'var(--surface)', borderRadius:2, overflow:'hidden',
+            }}>
+              <div style={{
+                width:`${Math.min(100, (earnedTimeLeft / 30) * 100)}%`,
+                height:'100%', background:'var(--allow-color)', transition:'width 1s',
+              }} />
+            </div>
+          </div>
+        )}
+
         {loading && (
           <div className="status-msg">
             <span className="emoji">{'\u23f3'}</span>Finding great videos...
@@ -2774,6 +3136,14 @@ function App() {
 
       {playingVideo && (
         <PlayerOverlay video={playingVideo} onClose={() => setPlayingVideo(null)} />
+      )}
+
+      {showMathChallenge && (
+        <MathChallenge settings={settings} onComplete={handleMathComplete} />
+      )}
+
+      {mathEarned !== null && (
+        <MathCompleteScreen earnedMinutes={mathEarned} onContinue={handleMathContinue} />
       )}
 
       {showApprovalPin && (
