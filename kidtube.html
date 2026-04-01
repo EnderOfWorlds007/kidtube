@@ -1114,6 +1114,43 @@ function hasEarnedTime() {
   return getEarnedTime() > 0;
 }
 
+/* ─── Math taper: more rounds = more questions, less reward ─── */
+// Round counter resets daily
+function getMathRound() {
+  try {
+    const data = JSON.parse(localStorage.getItem('kidtube_mathround') || '{}');
+    const today = new Date().toDateString();
+    if (data.date !== today) return 0; // new day, reset
+    return data.round || 0;
+  } catch { return 0; }
+}
+
+function incrementMathRound() {
+  const today = new Date().toDateString();
+  const round = getMathRound() + 1;
+  localStorage.setItem('kidtube_mathround', JSON.stringify({ date: today, round }));
+  return round;
+}
+
+// Returns { questions, minutesPerCorrect } for the current round
+function getMathDifficulty(baseQuestions, baseMinutes) {
+  const round = getMathRound();
+  const schedule = [
+    { questions: baseQuestions,     minutesPerCorrect: baseMinutes },       // Round 0: 3q → 2min each = 6min
+    { questions: baseQuestions + 1, minutesPerCorrect: baseMinutes * 0.75 },// Round 1: 4q → 1.5min each = 6min
+    { questions: baseQuestions + 2, minutesPerCorrect: baseMinutes * 0.5 }, // Round 2: 5q → 1min each = 5min
+    { questions: baseQuestions + 3, minutesPerCorrect: baseMinutes * 0.25 },// Round 3: 6q → 0.5min each = 3min
+  ];
+  // Round 4+: max questions, minimal reward
+  if (round >= schedule.length) {
+    return {
+      questions: baseQuestions + 5,
+      minutesPerCorrect: Math.max(0.25, baseMinutes * 0.125),
+    };
+  }
+  return schedule[round];
+}
+
 /* ─── Last visit tracking ─── */
 function getLastVisit() {
   const ts = localStorage.getItem('kidtube_last_visit');
@@ -2119,9 +2156,12 @@ function SearchResult({ video, onClick }) {
 }
 
 function MathChallenge({ settings, onComplete }) {
-  const tables = settings.mathTables || [2,3,4,5];
-  const total = settings.mathQuestionsPerRound || 3;
-  const minsPerCorrect = settings.mathMinutesPerCorrect || 2;
+  const tables = settings.mathTables || [3,4,5,6,7,8,9,10];
+  const baseQuestions = settings.mathQuestionsPerRound || 3;
+  const baseMinutes = settings.mathMinutesPerCorrect || 2;
+  const difficulty = getMathDifficulty(baseQuestions, baseMinutes);
+  const total = difficulty.questions;
+  const minsPerCorrect = difficulty.minutesPerCorrect;
 
   const [questionIdx, setQuestionIdx] = useState(0);
   const [question, setQuestion] = useState(() => generateMathQuestion(tables));
@@ -2250,7 +2290,7 @@ function MathChallenge({ settings, onComplete }) {
 
       {/* Earned time info */}
       <div style={{marginTop:32, fontSize:13, color:'var(--text-tertiary)', textAlign:'center'}}>
-        Each correct answer = {minsPerCorrect} min of video time
+        Each correct answer = {minsPerCorrect >= 1 ? minsPerCorrect : Math.round(minsPerCorrect * 60) + 's'} of video time
         {streak >= 2 && <span style={{color:'var(--allow-color)'}}> | Streak: {streak}{'\ud83d\udd25'}</span>}
       </div>
     </div>
@@ -2258,6 +2298,7 @@ function MathChallenge({ settings, onComplete }) {
 }
 
 function MathCompleteScreen({ earnedMinutes, onContinue }) {
+  const totalTime = Math.ceil(getEarnedTime());
   return (
     <div style={{
       position:'fixed', inset:0, background:'var(--bg)', zIndex:400,
@@ -2266,10 +2307,13 @@ function MathCompleteScreen({ earnedMinutes, onContinue }) {
     }}>
       <div style={{fontSize:64, marginBottom:16}}>{'\ud83c\udf89'}</div>
       <div style={{fontSize:24, fontWeight:700, color:'var(--text-primary)', marginBottom:8}}>
-        Well done!
+        {earnedMinutes >= 3 ? 'Well done!' : 'Keep practicing!'}
       </div>
-      <div style={{fontSize:18, color:'var(--text-secondary)', marginBottom:24}}>
-        You earned {earnedMinutes} minutes of video time!
+      <div style={{fontSize:18, color:'var(--text-secondary)', marginBottom:8}}>
+        +{Math.round(earnedMinutes)} minutes earned
+      </div>
+      <div style={{fontSize:14, color:'var(--text-tertiary)', marginBottom:24}}>
+        You have {totalTime} min of video time
       </div>
       <button onClick={onContinue}
         style={{
@@ -3007,6 +3051,7 @@ function App() {
   }
 
   function handleMathComplete(earnedMinutes) {
+    incrementMathRound();
     setShowMathChallenge(false);
     setMathEarned(earnedMinutes);
     setEarnedTimeLeft(getEarnedTime());
