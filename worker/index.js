@@ -48,15 +48,21 @@ export default {
               },
               redirect: 'follow',
             });
-            if (!resp.ok) { results[videoId] = { audioLangs: [], captionLangs: [] }; return; }
+            if (!resp.ok) { results[videoId] = { audioLangs: [], captionLangs: [], _dbg: 'http_' + resp.status }; return; }
             const html = await resp.text();
 
             // Extract ytInitialPlayerResponse JSON from page
             const match = html.match(/var ytInitialPlayerResponse\s*=\s*(\{.+?\});/);
-            if (!match) { results[videoId] = { audioLangs: [], captionLangs: [] }; return; }
+            if (!match) {
+              const hasConsent = html.includes('consent.youtube.com') || html.includes('CONSENT');
+              const hasPlayerResp = html.includes('ytInitialPlayerResponse');
+              const snippet = html.substring(0, 500).replace(/\s+/g, ' ');
+              results[videoId] = { audioLangs: [], captionLangs: [], _dbg: 'no_match', hasConsent, hasPlayerResp, htmlLen: html.length, snippet };
+              return;
+            }
 
             let data;
-            try { data = JSON.parse(match[1]); } catch { results[videoId] = { audioLangs: [], captionLangs: [] }; return; }
+            try { data = JSON.parse(match[1]); } catch { results[videoId] = { audioLangs: [], captionLangs: [], _dbg: 'json_parse_fail' }; return; }
 
             // Audio track languages from streamingData.adaptiveFormats
             const audioLangs = new Set();
