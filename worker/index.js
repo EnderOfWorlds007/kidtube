@@ -77,7 +77,9 @@ export default {
               if (t.languageCode) captionLangs.add(t.languageCode);
             }
 
-            results[videoId] = { audioLangs: [...audioLangs], captionLangs: [...captionLangs] };
+            const status = data.playabilityStatus?.status || 'unknown';
+            const topKeys = Object.keys(data);
+            results[videoId] = { audioLangs: [...audioLangs], captionLangs: [...captionLangs], _dbg: { status, topKeys, hasCaptions: !!data.captions, hasStreaming: !!data.streamingData } };
           } catch {
             results[videoId] = { audioLangs: [], captionLangs: [] };
           }
