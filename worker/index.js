@@ -40,11 +40,13 @@ export default {
         const batch = ids.slice(i, i + 3);
         await Promise.all(batch.map(async (videoId) => {
           try {
-            const resp = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
+            const resp = await fetch(`https://www.youtube.com/watch?v=${videoId}&hl=en`, {
               headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
                 'Accept-Language': 'en-US,en;q=0.9',
+                'Cookie': 'CONSENT=PENDING+987; SOCS=CAESEwgDEgk2ODE3MTcwMjQaAmVuIAEaBgiA_LyuBg',
               },
+              redirect: 'follow',
             });
             if (!resp.ok) { results[videoId] = { audioLangs: [], captionLangs: [] }; return; }
             const html = await resp.text();
