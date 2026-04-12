@@ -763,7 +763,7 @@ function ytApiUrl(path, params) {
 }
 
 /* ─── Constants ─── */
-const SETTINGS_VERSION = 3; // bump to push default changes to existing users
+const SETTINGS_VERSION = 4; // bump to push default changes to existing users
 const DEFAULT_SETTINGS = {
   _v: SETTINGS_VERSION,
   apiKey: '',
@@ -971,7 +971,7 @@ function loadSettings() {
     // that haven't been explicitly customized
     if ((saved._v || 0) < SETTINGS_VERSION) {
       const upgraded = { ...DEFAULT_SETTINGS, ...saved, _v: SETTINGS_VERSION, _needsPinReset: true };
-      if (!saved.languages || saved.languages.length === 0) upgraded.languages = DEFAULT_SETTINGS.languages;
+      if (!saved.languages || saved.languages.length === 0 || !saved.languages.includes('fr')) upgraded.languages = DEFAULT_SETTINGS.languages;
       if (!saved.maxDuration || saved.maxDuration === 10) upgraded.maxDuration = DEFAULT_SETTINGS.maxDuration;
       if (saved.minDuration === undefined) upgraded.minDuration = DEFAULT_SETTINGS.minDuration;
       if (saved.useRssHomeFeed === undefined) upgraded.useRssHomeFeed = DEFAULT_SETTINGS.useRssHomeFeed;
