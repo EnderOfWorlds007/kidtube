@@ -925,12 +925,11 @@ async function enrichRssVideos(videos, apiKey) {
       }
     } catch {}
   }
-  const langMap = await getVideoLanguages(ids);
   return videos.map(v => ({
     ...v,
     durationSec: enrichMap[v.id]?.durationSec ?? v.durationSec,
     statistics: enrichMap[v.id]?.statistics || v.statistics || {},
-    _langs: langMap[v.id] || null,
+    _langs: null, // RSS feeds use curated channels — language check not needed
   }));
 }
 
@@ -1268,26 +1267,28 @@ const CONSTRAINT_FILTERS = [
     if (views <= 0) return 'pass'; // no view data (RSS), let it through
     return views >= minViews ? 'pass' : 'block';
   },
-  function languageFilter(video, settings) {
-    const langs = settings.languages || [];
-    if (langs.length === 0) return 'pass';
-
-    // If InnerTube language data is available, use it (most accurate)
-    if (video._langs) {
-      const allLangs = [...(video._langs.audioLangs || []), ...(video._langs.captionLangs || [])];
-      if (allLangs.length > 0) {
-        const codes = allLangs.map(l => l.toLowerCase().split('-')[0]);
-        return codes.some(c => langs.includes(c)) ? 'pass' : 'block';
-      }
-    }
-
-    // Fallback: check defaultLanguage / defaultAudioLanguage from Data API
-    const vidLang = video.snippet?.defaultLanguage || video.snippet?.defaultAudioLanguage;
-    if (!vidLang) return 'pass'; // no language data at all, let it through
-    const code = vidLang.toLowerCase().split('-')[0];
-    return langs.includes(code) ? 'pass' : 'block';
-  },
+  languageFilter,
 ];
+
+function languageFilter(video, settings) {
+  const langs = settings.languages || [];
+  if (langs.length === 0) return 'pass';
+
+  // If InnerTube language data is available, use it (most accurate)
+  if (video._langs) {
+    const allLangs = [...(video._langs.audioLangs || []), ...(video._langs.captionLangs || [])];
+    if (allLangs.length > 0) {
+      const codes = allLangs.map(l => l.toLowerCase().split('-')[0]);
+      return codes.some(c => langs.includes(c)) ? 'pass' : 'block';
+    }
+  }
+
+  // Fallback: check defaultLanguage / defaultAudioLanguage from Data API
+  const vidLang = video.snippet?.defaultLanguage || video.snippet?.defaultAudioLanguage;
+  if (!vidLang) return 'pass'; // no language data at all, let it through
+  const code = vidLang.toLowerCase().split('-')[0];
+  return langs.includes(code) ? 'pass' : 'block';
+}
 
 function runFilterPipeline(videos, settings) {
   return videos.filter(video => {
@@ -2799,18 +2800,50 @@ function App() {
     if (searchResp.error) throw new Error(searchResp.error.message || 'API error');
     const ids = (searchResp.items || []).map(i => i.id.videoId).filter(Boolean);
     if (!ids.length) return { videos: [], nextPageToken: null };
-    const [detailResp, langMap] = await Promise.all([
-      getVideoDetails(settings.apiKey, ids),
-      getVideoLanguages(ids),
-    ]);
+    const detailResp = await getVideoDetails(settings.apiKey, ids);
     const enriched = detailResp.items.map(item => ({
       ...item,
       durationSec: parseDuration(item.contentDetails.duration),
       subscriberCount: null,
-      _langs: langMap[item.id] || null,
+      _langs: null,
     }));
+
+    // First pass: filter with Data API language info only
+    const passed = [];
+    const blockedByLang = [];
+    const langs = settings.languages || [];
+    for (const v of enriched) {
+      // Run all filters except language
+      let blocked = false;
+      for (const fn of ALLOW_FILTERS) { if (fn(v, settings) === 'allow') { passed.push(v); blocked = false; break; } }
+      if (passed[passed.length - 1] === v) continue;
+      for (const fn of BLOCK_FILTERS) { if (fn(v, settings) === 'block') { blocked = true; break; } }
+      if (blocked) continue;
+      for (const fn of CONSTRAINT_FILTERS) {
+        if (fn === languageFilter) continue; // skip language filter for now
+        if (fn(v, settings) === 'block') { blocked = true; break; }
+      }
+      if (blocked) continue;
+      // Now check language — if it would block, save for second-chance check
+      const langResult = languageFilter(v, settings);
+      if (langResult === 'block') blockedByLang.push(v);
+      else passed.push(v);
+    }
+
+    // Second pass: check language-blocked videos for multi-language support
+    if (blockedByLang.length > 0 && langs.length > 0) {
+      const langMap = await getVideoLanguages(blockedByLang.map(v => v.id));
+      for (const v of blockedByLang) {
+        const vl = langMap[v.id];
+        if (vl) {
+          v._langs = vl;
+          if (languageFilter(v, settings) !== 'block') passed.push(v);
+        }
+      }
+    }
+
     return {
-      videos: runFilterPipeline(enriched, settings),
+      videos: passed,
       nextPageToken: searchResp.nextPageToken || null,
     };
   }, [settings]);

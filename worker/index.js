@@ -35,9 +35,9 @@ export default {
       if (!ids.length) return jsonResponse({ error: 'Missing ids parameter' }, 400, request);
 
       const results = {};
-      // Process in batches of 6 to limit concurrency
-      for (let i = 0; i < ids.length; i += 6) {
-        const batch = ids.slice(i, i + 6);
+      // Process in batches of 3 — YouTube rate-limits parallel watch page fetches
+      for (let i = 0; i < ids.length; i += 3) {
+        const batch = ids.slice(i, i + 3);
         await Promise.all(batch.map(async (videoId) => {
           try {
             const resp = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
