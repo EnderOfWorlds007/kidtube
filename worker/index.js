@@ -31,10 +31,11 @@ export default {
     // InnerTube direct API is blocked by bot detection, but the watch page HTML embeds the
     // full player response in ytInitialPlayerResponse. No API key or quota used.
     if (path === '/video-languages') {
-      const ids = (url.searchParams.get('ids') || '').split(',').filter(Boolean).slice(0, 50);
+      const ids = (url.searchParams.get('ids') || '').split(',').filter(Boolean).slice(0, 10);
       if (!ids.length) return jsonResponse({ error: 'Missing ids parameter' }, 400, request);
 
       const results = {};
+      let anySuccess = false;
       // Process in batches of 3 — YouTube rate-limits parallel watch page fetches
       for (let i = 0; i < ids.length; i += 3) {
         const batch = ids.slice(i, i + 3);
@@ -48,46 +49,39 @@ export default {
               },
               redirect: 'follow',
             });
-            if (!resp.ok) { results[videoId] = { audioLangs: [], captionLangs: [], _dbg: 'http_' + resp.status }; return; }
+            if (!resp.ok) return; // skip — don't cache failures
             const html = await resp.text();
 
-            // Extract ytInitialPlayerResponse JSON from page
             const match = html.match(/var ytInitialPlayerResponse\s*=\s*(\{.+?\});/);
-            if (!match) {
-              const hasConsent = html.includes('consent.youtube.com') || html.includes('CONSENT');
-              const hasPlayerResp = html.includes('ytInitialPlayerResponse');
-              const snippet = html.substring(0, 500).replace(/\s+/g, ' ');
-              results[videoId] = { audioLangs: [], captionLangs: [], _dbg: 'no_match', hasConsent, hasPlayerResp, htmlLen: html.length, snippet };
-              return;
-            }
+            if (!match) return;
 
             let data;
-            try { data = JSON.parse(match[1]); } catch { results[videoId] = { audioLangs: [], captionLangs: [], _dbg: 'json_parse_fail' }; return; }
+            try { data = JSON.parse(match[1]); } catch { return; }
 
-            // Audio track languages from streamingData.adaptiveFormats
             const audioLangs = new Set();
             for (const fmt of data.streamingData?.adaptiveFormats || []) {
               const lang = fmt.audioTrack?.id?.split('.')[0];
               if (lang) audioLangs.add(lang);
             }
 
-            // Caption languages from captions renderer
             const captionLangs = new Set();
             for (const t of data.captions?.playerCaptionsTracklistRenderer?.captionTracks || []) {
               if (t.languageCode) captionLangs.add(t.languageCode);
             }
 
-            const status = data.playabilityStatus?.status || 'unknown';
-            const topKeys = Object.keys(data);
-            results[videoId] = { audioLangs: [...audioLangs], captionLangs: [...captionLangs], _dbg: { status, topKeys, hasCaptions: !!data.captions, hasStreaming: !!data.streamingData } };
-          } catch {
-            results[videoId] = { audioLangs: [], captionLangs: [] };
-          }
+            // Only record if we actually got language data
+            if (audioLangs.size > 0 || captionLangs.size > 0) {
+              results[videoId] = { audioLangs: [...audioLangs], captionLangs: [...captionLangs] };
+              anySuccess = true;
+            }
+          } catch {}
         }));
       }
 
+      // Only cache if we got real data — don't let 429/error responses pollute cache
+      const cacheHeader = anySuccess ? 'public, max-age=3600' : 'no-store';
       return new Response(JSON.stringify(results), {
-        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=3600', ...corsHeaders(request) },
+        headers: { 'Content-Type': 'application/json', 'Cache-Control': cacheHeader, ...corsHeaders(request) },
       });
     }
 
