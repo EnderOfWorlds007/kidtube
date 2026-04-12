@@ -27,52 +27,53 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname;
 
-    // Video languages proxy: calls InnerTube to get available audio tracks + caption languages
-    // No API key or quota used — this is YouTube's internal player API.
+    // Video languages: scrape YouTube watch pages for available audio tracks + caption languages.
+    // InnerTube direct API is blocked by bot detection, but the watch page HTML embeds the
+    // full player response in ytInitialPlayerResponse. No API key or quota used.
     if (path === '/video-languages') {
       const ids = (url.searchParams.get('ids') || '').split(',').filter(Boolean).slice(0, 50);
       if (!ids.length) return jsonResponse({ error: 'Missing ids parameter' }, 400, request);
 
       const results = {};
-      // Fetch in parallel, batches of 10 to avoid hammering
-      for (let i = 0; i < ids.length; i += 10) {
-        const batch = ids.slice(i, i + 10);
-        const fetches = batch.map(async (videoId) => {
+      // Process in batches of 6 to limit concurrency
+      for (let i = 0; i < ids.length; i += 6) {
+        const batch = ids.slice(i, i + 6);
+        await Promise.all(batch.map(async (videoId) => {
           try {
-            const resp = await fetch('https://www.youtube.com/youtubei/v1/player', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                context: { client: { clientName: 'WEB', clientVersion: '2.20250401.00.00' } },
-                videoId,
-              }),
+            const resp = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                'Accept-Language': 'en-US,en;q=0.9',
+              },
             });
             if (!resp.ok) { results[videoId] = { audioLangs: [], captionLangs: [] }; return; }
-            const data = await resp.json();
+            const html = await resp.text();
 
-            // Extract audio track languages from streamingData.adaptiveFormats
+            // Extract ytInitialPlayerResponse JSON from page
+            const match = html.match(/var ytInitialPlayerResponse\s*=\s*(\{.+?\});/);
+            if (!match) { results[videoId] = { audioLangs: [], captionLangs: [] }; return; }
+
+            let data;
+            try { data = JSON.parse(match[1]); } catch { results[videoId] = { audioLangs: [], captionLangs: [] }; return; }
+
+            // Audio track languages from streamingData.adaptiveFormats
             const audioLangs = new Set();
             for (const fmt of data.streamingData?.adaptiveFormats || []) {
               const lang = fmt.audioTrack?.id?.split('.')[0];
               if (lang) audioLangs.add(lang);
             }
 
-            // Extract caption languages from captions renderer
+            // Caption languages from captions renderer
             const captionLangs = new Set();
-            const tracks = data.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
-            for (const t of tracks) {
+            for (const t of data.captions?.playerCaptionsTracklistRenderer?.captionTracks || []) {
               if (t.languageCode) captionLangs.add(t.languageCode);
             }
 
-            results[videoId] = {
-              audioLangs: [...audioLangs],
-              captionLangs: [...captionLangs],
-            };
+            results[videoId] = { audioLangs: [...audioLangs], captionLangs: [...captionLangs] };
           } catch {
             results[videoId] = { audioLangs: [], captionLangs: [] };
           }
-        });
-        await Promise.all(fetches);
+        }));
       }
 
       return new Response(JSON.stringify(results), {
