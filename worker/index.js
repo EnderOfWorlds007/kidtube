@@ -27,6 +27,59 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname;
 
+    // Video languages proxy: calls InnerTube to get available audio tracks + caption languages
+    // No API key or quota used — this is YouTube's internal player API.
+    if (path === '/video-languages') {
+      const ids = (url.searchParams.get('ids') || '').split(',').filter(Boolean).slice(0, 50);
+      if (!ids.length) return jsonResponse({ error: 'Missing ids parameter' }, 400, request);
+
+      const results = {};
+      // Fetch in parallel, batches of 10 to avoid hammering
+      for (let i = 0; i < ids.length; i += 10) {
+        const batch = ids.slice(i, i + 10);
+        const fetches = batch.map(async (videoId) => {
+          try {
+            const resp = await fetch('https://www.youtube.com/youtubei/v1/player', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                context: { client: { clientName: 'WEB', clientVersion: '2.20250401.00.00' } },
+                videoId,
+              }),
+            });
+            if (!resp.ok) { results[videoId] = { audioLangs: [], captionLangs: [] }; return; }
+            const data = await resp.json();
+
+            // Extract audio track languages from streamingData.adaptiveFormats
+            const audioLangs = new Set();
+            for (const fmt of data.streamingData?.adaptiveFormats || []) {
+              const lang = fmt.audioTrack?.id?.split('.')[0];
+              if (lang) audioLangs.add(lang);
+            }
+
+            // Extract caption languages from captions renderer
+            const captionLangs = new Set();
+            const tracks = data.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
+            for (const t of tracks) {
+              if (t.languageCode) captionLangs.add(t.languageCode);
+            }
+
+            results[videoId] = {
+              audioLangs: [...audioLangs],
+              captionLangs: [...captionLangs],
+            };
+          } catch {
+            results[videoId] = { audioLangs: [], captionLangs: [] };
+          }
+        });
+        await Promise.all(fetches);
+      }
+
+      return new Response(JSON.stringify(results), {
+        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=3600', ...corsHeaders(request) },
+      });
+    }
+
     // RSS feed proxy: /rss?channel_id=XXX
     if (path === '/rss') {
       const channelId = url.searchParams.get('channel_id');

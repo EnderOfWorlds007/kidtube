@@ -925,10 +925,12 @@ async function enrichRssVideos(videos, apiKey) {
       }
     } catch {}
   }
+  const langMap = await getVideoLanguages(ids);
   return videos.map(v => ({
     ...v,
     durationSec: enrichMap[v.id]?.durationSec ?? v.durationSec,
     statistics: enrichMap[v.id]?.statistics || v.statistics || {},
+    _langs: langMap[v.id] || null,
   }));
 }
 
@@ -1269,10 +1271,19 @@ const CONSTRAINT_FILTERS = [
   function languageFilter(video, settings) {
     const langs = settings.languages || [];
     if (langs.length === 0) return 'pass';
-    // Check both defaultLanguage and defaultAudioLanguage from YouTube API
+
+    // If InnerTube language data is available, use it (most accurate)
+    if (video._langs) {
+      const allLangs = [...(video._langs.audioLangs || []), ...(video._langs.captionLangs || [])];
+      if (allLangs.length > 0) {
+        const codes = allLangs.map(l => l.toLowerCase().split('-')[0]);
+        return codes.some(c => langs.includes(c)) ? 'pass' : 'block';
+      }
+    }
+
+    // Fallback: check defaultLanguage / defaultAudioLanguage from Data API
     const vidLang = video.snippet?.defaultLanguage || video.snippet?.defaultAudioLanguage;
-    if (!vidLang) return 'pass'; // no language declared, let it through
-    // Match primary code (e.g. "fr-FR" matches "fr")
+    if (!vidLang) return 'pass'; // no language data at all, let it through
     const code = vidLang.toLowerCase().split('-')[0];
     return langs.includes(code) ? 'pass' : 'block';
   },
@@ -1421,6 +1432,15 @@ async function getVideoDetails(apiKey, ids) {
   const resp = await cachedFetch(ytApiUrl('/youtube/v3/videos', params));
   if (!resp.ok) throw new Error(`YouTube details failed (${resp.status})`);
   return resp.json();
+}
+
+async function getVideoLanguages(ids) {
+  if (!PROXY_URL || !ids.length) return {};
+  try {
+    const resp = await cachedFetch(`${PROXY_URL}/video-languages?ids=${ids.join(',')}`);
+    if (!resp.ok) return {};
+    return resp.json();
+  } catch { return {}; }
 }
 
 async function getChannelDetails(apiKey, channelIds) {
@@ -2779,11 +2799,15 @@ function App() {
     if (searchResp.error) throw new Error(searchResp.error.message || 'API error');
     const ids = (searchResp.items || []).map(i => i.id.videoId).filter(Boolean);
     if (!ids.length) return { videos: [], nextPageToken: null };
-    const detailResp = await getVideoDetails(settings.apiKey, ids);
+    const [detailResp, langMap] = await Promise.all([
+      getVideoDetails(settings.apiKey, ids),
+      getVideoLanguages(ids),
+    ]);
     const enriched = detailResp.items.map(item => ({
       ...item,
       durationSec: parseDuration(item.contentDetails.duration),
       subscriberCount: null,
+      _langs: langMap[item.id] || null,
     }));
     return {
       videos: runFilterPipeline(enriched, settings),
