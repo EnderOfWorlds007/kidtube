@@ -385,6 +385,19 @@
     display: block;
     border: none;
   }
+  .player-body.css-fullscreen {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    border-radius: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .player-body.css-fullscreen iframe,
+  .player-body.css-fullscreen #yt-player-target {
+    aspect-ratio: auto;
+    flex: 1;
+  }
   .player-info { padding: 16px; }
   .player-title {
     font-size: 16px;
@@ -1253,6 +1266,16 @@ const CONSTRAINT_FILTERS = [
     if (views <= 0) return 'pass'; // no view data (RSS), let it through
     return views >= minViews ? 'pass' : 'block';
   },
+  function languageFilter(video, settings) {
+    const langs = settings.languages || [];
+    if (langs.length === 0) return 'pass';
+    // Check both defaultLanguage and defaultAudioLanguage from YouTube API
+    const vidLang = video.snippet?.defaultLanguage || video.snippet?.defaultAudioLanguage;
+    if (!vidLang) return 'pass'; // no language declared, let it through
+    // Match primary code (e.g. "fr-FR" matches "fr")
+    const code = vidLang.toLowerCase().split('-')[0];
+    return langs.includes(code) ? 'pass' : 'block';
+  },
 ];
 
 function runFilterPipeline(videos, settings) {
@@ -1791,6 +1814,35 @@ function SettingsModal({ settings, onSave, onCancel }) {
 
         <div className="settings-tier">
           <div className="settings-tier-header">
+            <div className="settings-tier-dot" style={{background:'#63b3ed'}}></div>
+            <div className="settings-tier-title" style={{color:'#63b3ed'}}>Language &amp; Region</div>
+            <div className="settings-tier-hint">(search &amp; filter language)</div>
+          </div>
+          <div className="settings-tier-body">
+            <div>
+              <div className="settings-label">Languages (ordered by priority)</div>
+              <LanguageList
+                languages={s.languages || []}
+                onChange={langs => upd('languages', langs)}
+              />
+            </div>
+            <div style={{fontSize:11, color:'var(--text-tertiary)', marginTop:-6}}>
+              Primary language controls search results, home feed, and voice input. Videos declaring a different language are filtered out.
+            </div>
+            <div className="settings-row">
+              <div className="settings-label" style={{marginBottom:0}}>SafeSearch</div>
+              <select className="settings-select" style={{width:'auto'}}
+                value={s.safeSearch} onChange={e => upd('safeSearch', e.target.value)}>
+                <option value="strict">Strict</option>
+                <option value="moderate">Moderate</option>
+                <option value="none">None</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div className="settings-tier">
+          <div className="settings-tier-header">
             <div className="settings-tier-dot" style={{background:'var(--constraint-color)'}}></div>
             <div className="settings-tier-title" style={{color:'var(--constraint-color)'}}>Constraints</div>
             <div className="settings-tier-hint">(must pass all)</div>
@@ -1825,22 +1877,6 @@ function SettingsModal({ settings, onSave, onCancel }) {
             </div>
             <div style={{fontSize:11, color:'var(--text-tertiary)', marginTop:-6}}>
               After this many videos, PIN required to continue. 0 = unlimited.
-            </div>
-            <div>
-              <div className="settings-label">Languages (ordered by priority)</div>
-              <LanguageList
-                languages={s.languages || []}
-                onChange={langs => upd('languages', langs)}
-              />
-            </div>
-            <div className="settings-row">
-              <div className="settings-label" style={{marginBottom:0}}>SafeSearch</div>
-              <select className="settings-select" style={{width:'auto'}}
-                value={s.safeSearch} onChange={e => upd('safeSearch', e.target.value)}>
-                <option value="strict">Strict</option>
-                <option value="moderate">Moderate</option>
-                <option value="none">None</option>
-              </select>
             </div>
             <div className="settings-row">
               <div>
@@ -2413,6 +2449,7 @@ function PlayerOverlay({ video, onClose }) {
   const playerRef = useRef(null);
   const [playerError, setPlayerError] = useState(null);
   const [isPlaying, setIsPlaying] = useState(true);
+  const [isCssFullscreen, setIsCssFullscreen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -2475,6 +2512,14 @@ function PlayerOverlay({ video, onClose }) {
   const controlsTimer = useRef(null);
   const progressBarRef = useRef(null);
 
+  // Exit CSS fullscreen on Escape
+  useEffect(() => {
+    if (!isCssFullscreen) return;
+    const onKey = (e) => { if (e.key === 'Escape') setIsCssFullscreen(false); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [isCssFullscreen]);
+
   // Poll progress
   useEffect(() => {
     const iv = setInterval(() => {
@@ -2529,7 +2574,7 @@ function PlayerOverlay({ video, onClose }) {
         <div className="player-close">
           <button className="player-close-btn" onClick={onClose}>&#10005;</button>
         </div>
-        <div className="player-body">
+        <div className={'player-body' + (isCssFullscreen ? ' css-fullscreen' : '')}>
           {playerError ? (
             <div className="player-error">
               <div style={{fontSize:'36px'}}>
@@ -2634,17 +2679,23 @@ function PlayerOverlay({ video, onClose }) {
                   <button onClick={(e) => {
                     e.stopPropagation();
                     const el = document.querySelector('.player-body');
-                    if (el) {
+                    if (!el) return;
+                    const canFullscreen = el.requestFullscreen || el.webkitRequestFullscreen;
+                    if (canFullscreen) {
                       if (document.fullscreenElement || document.webkitFullscreenElement) {
                         (document.exitFullscreen || document.webkitExitFullscreen).call(document);
                       } else {
-                        (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+                        canFullscreen.call(el);
                       }
+                    } else {
+                      setIsCssFullscreen(prev => !prev);
                     }
                   }}
                     style={{background:'none', border:'none', cursor:'pointer', padding:4, display:'flex', marginLeft:8}}>
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
-                      <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
+                      {isCssFullscreen
+                        ? <path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/>
+                        : <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>}
                     </svg>
                   </button>
                 </div>
